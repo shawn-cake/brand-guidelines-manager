@@ -164,7 +164,7 @@ Use an 8px base grid with the following scale:
 - Background: Cake Yellow (`#F2A918`)
 - Text: Gray 900 (`#111827`)
 - Border radius: 6px
-- Hover: Yellow 700 (`#B87D0E`)
+- Hover: Yellow 600 (`#D99A15`) - maintains contrast with dark text
 
 **Ghost/Text Button**
 - Background: Transparent

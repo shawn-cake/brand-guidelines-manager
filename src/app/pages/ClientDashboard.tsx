@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUpload, faDownload, faClockRotateLeft, faCheck, faShareNodes, faSpinner, faPen } from '@fortawesome/free-solid-svg-icons';
+import { faUpload, faDownload, faClockRotateLeft, faCheck, faShareNodes, faSpinner, faPen, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
@@ -18,13 +18,20 @@ export function ClientDashboard() {
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
+  const [viewingVersionId, setViewingVersionId] = useState<Id<"versions"> | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   const client = useQuery(
-    api.clients.get, 
+    api.clients.get,
     clientId ? { id: clientId as Id<"clients"> } : "skip"
   );
-  
+
+  // Fetch the version being viewed (if any)
+  const viewingVersion = useQuery(
+    api.versions.get,
+    viewingVersionId ? { id: viewingVersionId } : "skip"
+  );
+
   const updateMetadata = useMutation(api.clients.updateMetadata);
 
   // Focus input when entering edit mode
@@ -41,6 +48,11 @@ export function ClientDashboard() {
       setEditedName(client.client_name);
     }
   }, [client]);
+
+  // Debug: track viewingVersionId changes
+  useEffect(() => {
+    console.log('=== viewingVersionId changed ===', viewingVersionId);
+  }, [viewingVersionId]);
 
   const handleNameSave = async () => {
     if (!client || editedName.trim() === '') return;
@@ -103,8 +115,41 @@ export function ClientDashboard() {
     </div>
   );
 
+  // Determine which data to display - version data or current draft
+  // viewingVersion will be undefined while loading, null if not found, or the version object
+  const isViewingVersion = viewingVersionId !== null && viewingVersion !== undefined && viewingVersion !== null;
+  const displayData = (isViewingVersion && viewingVersion) ? viewingVersion.data : client.data;
+
+  // Debug logging
+  console.log('=== ClientDashboard Debug ===');
+  console.log('viewingVersionId:', viewingVersionId);
+  console.log('viewingVersion:', viewingVersion);
+  console.log('isViewingVersion:', isViewingVersion);
+
   return (
     <div className="h-full flex flex-col">
+      {/* Version Viewing Banner */}
+      {isViewingVersion && (
+        <div className="bg-[#FDE9B8] border-b border-[#F2A918] px-8 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-[#B87D0E]">
+              Viewing version {viewingVersion.version_number}
+              {viewingVersion.version_name && ` — ${viewingVersion.version_name}`}
+            </span>
+            <span className="text-xs text-[#B87D0E]/70">
+              (Read-only)
+            </span>
+          </div>
+          <button
+            onClick={() => setViewingVersionId(null)}
+            className="px-4 py-1.5 bg-[#4074A8] text-white text-sm font-medium rounded-md hover:bg-[#2D5276] transition-colors flex items-center gap-2"
+          >
+            <FontAwesomeIcon icon={faArrowLeft} className="w-3 h-3" />
+            Back to Current Draft
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white border-b border-[#E5E7EB] px-8 py-6">
         <div className="flex items-start justify-between">
@@ -199,10 +244,12 @@ export function ClientDashboard() {
       <div className="flex-1 overflow-y-auto bg-[#F9FAFB]">
         <div className="max-w-[800px] mx-auto py-8 px-8">
           {activeTab === 'foundations' && (
-            <FoundationsTab 
+            <FoundationsTab
+              key={`foundations-${viewingVersionId ? String(viewingVersionId) : 'current-draft'}`}
               clientId={client._id}
-              data={client.data.foundations} 
-              fullData={client.data}
+              data={displayData.foundations}
+              fullData={displayData}
+              readOnly={isViewingVersion}
             />
           )}
           {activeTab === 'visual' && <ComingSoonTab name="Visual Identity" />}
@@ -213,9 +260,11 @@ export function ClientDashboard() {
 
       {/* Version History Panel */}
       {showVersionHistory && (
-        <VersionHistoryPanel 
+        <VersionHistoryPanel
           clientId={client._id}
-          onClose={() => setShowVersionHistory(false)} 
+          viewingVersionId={viewingVersionId}
+          onClose={() => setShowVersionHistory(false)}
+          onViewVersion={setViewingVersionId}
         />
       )}
     </div>
