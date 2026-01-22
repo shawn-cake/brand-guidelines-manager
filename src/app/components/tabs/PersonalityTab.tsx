@@ -1,16 +1,130 @@
-import { useState } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronDown, faChevronRight, faPlus, faTrash } from '@fortawesome/free-solid-svg-icons';
-import { BrandGuideline } from '@/app/types';
+import { useMutation } from 'convex/react';
+import { api } from '../../../../convex/_generated/api';
+import { Id } from '../../../../convex/_generated/dataModel';
 
-interface PersonalityTabProps {
-  data: BrandGuideline['personality'];
+// Controlled input that syncs with external value and saves on blur
+interface ControlledInputProps {
+  value: string;
+  onSave: (value: string) => void;
+  readOnly?: boolean;
+  placeholder?: string;
+  className?: string;
+  type?: string;
 }
 
-export function PersonalityTab({ data }: PersonalityTabProps) {
+function ControlledInput({ value, onSave, readOnly = false, placeholder, className, type = 'text' }: ControlledInputProps) {
+  const [localValue, setLocalValue] = useState(value);
+
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  const handleBlur = () => {
+    if (!readOnly && localValue !== value) {
+      onSave(localValue);
+    }
+  };
+
+  return (
+    <input
+      type={type}
+      value={localValue}
+      onChange={(e) => setLocalValue(e.target.value)}
+      onBlur={handleBlur}
+      placeholder={placeholder}
+      className={className}
+      readOnly={readOnly}
+    />
+  );
+}
+
+// Controlled textarea
+interface ControlledTextareaProps {
+  value: string;
+  onSave: (value: string) => void;
+  readOnly?: boolean;
+  placeholder?: string;
+  className?: string;
+  rows?: number;
+}
+
+function ControlledTextarea({ value, onSave, readOnly = false, placeholder, className, rows = 3 }: ControlledTextareaProps) {
+  const [localValue, setLocalValue] = useState(value);
+
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  const handleBlur = () => {
+    if (!readOnly && localValue !== value) {
+      onSave(localValue);
+    }
+  };
+
+  return (
+    <textarea
+      value={localValue}
+      onChange={(e) => setLocalValue(e.target.value)}
+      onBlur={handleBlur}
+      placeholder={placeholder}
+      className={className}
+      rows={rows}
+      readOnly={readOnly}
+    />
+  );
+}
+
+// Controlled select
+interface ControlledSelectProps {
+  value: string;
+  onSave: (value: string) => void;
+  readOnly?: boolean;
+  className?: string;
+  children: React.ReactNode;
+}
+
+function ControlledSelect({ value, onSave, readOnly = false, className, children }: ControlledSelectProps) {
+  const [localValue, setLocalValue] = useState(value);
+
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newValue = e.target.value;
+    setLocalValue(newValue);
+    if (!readOnly) {
+      onSave(newValue);
+    }
+  };
+
+  return (
+    <select
+      value={localValue}
+      onChange={handleChange}
+      className={className}
+      disabled={readOnly}
+    >
+      {children}
+    </select>
+  );
+}
+
+interface PersonalityTabProps {
+  clientId: Id<"clients">;
+  data: any;
+  fullData: any;
+  readOnly?: boolean;
+}
+
+export function PersonalityTab({ clientId, data, fullData, readOnly = false }: PersonalityTabProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['traits', 'voice'])
   );
+  const updateClient = useMutation(api.clients.update);
 
   const toggleSection = (section: string) => {
     const newExpanded = new Set(expandedSections);
@@ -22,21 +136,118 @@ export function PersonalityTab({ data }: PersonalityTabProps) {
     setExpandedSections(newExpanded);
   };
 
+  // Data extraction with defaults
+  const traits = data?.brand_personality_traits || [];
+  const archetype = data?.brand_archetype || {};
+  const voiceChars = data?.voice_characteristics || [];
+  const toneVariations = data?.tone_variations_by_context || {};
+  const langGuidelines = data?.language_guidelines || {};
+  const preferredTerms = langGuidelines.preferred_terminology || [];
+  const wordsToAvoid = langGuidelines.words_to_avoid || [];
+  const industryLanguage = langGuidelines.industry_specific_language || [];
+  const inclusiveStandards = data?.inclusive_language_standards || [];
+
+  const saveField = useCallback(async (path: string[], value: any) => {
+    if (readOnly) return;
+    try {
+      const newData = JSON.parse(JSON.stringify(fullData));
+      let current = newData;
+      for (let i = 0; i < path.length - 1; i++) {
+        if (!current[path[i]]) current[path[i]] = {};
+        current = current[path[i]];
+      }
+      current[path[path.length - 1]] = value;
+      await updateClient({ id: clientId, data: newData });
+    } catch (error) {
+      console.error('Failed to save:', error);
+    }
+  }, [clientId, fullData, updateClient, readOnly]);
+
+  const handleAddToArray = async (path: string[], newItem: any) => {
+    if (readOnly) return;
+    const newData = JSON.parse(JSON.stringify(fullData));
+    let current = newData;
+    for (let i = 0; i < path.length - 1; i++) {
+      if (!current[path[i]]) current[path[i]] = {};
+      current = current[path[i]];
+    }
+    const arrayKey = path[path.length - 1];
+    if (!current[arrayKey]) current[arrayKey] = [];
+    current[arrayKey].push(newItem);
+    try {
+      await updateClient({ id: clientId, data: newData });
+    } catch (error) {
+      console.error('Failed to add item:', error);
+    }
+  };
+
+  const handleRemoveFromArray = async (path: string[], index: number) => {
+    if (readOnly) return;
+    const newData = JSON.parse(JSON.stringify(fullData));
+    let current = newData;
+    for (let i = 0; i < path.length - 1; i++) {
+      current = current[path[i]];
+    }
+    current[path[path.length - 1]].splice(index, 1);
+    try {
+      await updateClient({ id: clientId, data: newData });
+    } catch (error) {
+      console.error('Failed to remove item:', error);
+    }
+  };
+
+  const saveSimpleArrayItem = useCallback(async (path: string[], index: number, value: string) => {
+    if (readOnly) return;
+    try {
+      const newData = JSON.parse(JSON.stringify(fullData));
+      let current = newData;
+      for (let i = 0; i < path.length - 1; i++) {
+        if (!current[path[i]]) current[path[i]] = {};
+        current = current[path[i]];
+      }
+      current[path[path.length - 1]][index] = value;
+      await updateClient({ id: clientId, data: newData });
+    } catch (error) {
+      console.error('Failed to save array item:', error);
+    }
+  }, [clientId, fullData, updateClient, readOnly]);
+
+  const saveArrayItemField = useCallback(async (path: string[], index: number, field: string, value: string) => {
+    if (readOnly) return;
+    try {
+      const newData = JSON.parse(JSON.stringify(fullData));
+      let current = newData;
+      for (let i = 0; i < path.length - 1; i++) {
+        if (!current[path[i]]) current[path[i]] = {};
+        current = current[path[i]];
+      }
+      const arrayKey = path[path.length - 1];
+      if (current[arrayKey] && current[arrayKey][index]) {
+        current[arrayKey][index][field] = value;
+        await updateClient({ id: clientId, data: newData });
+      }
+    } catch (error) {
+      console.error('Failed to save array item field:', error);
+    }
+  }, [clientId, fullData, updateClient, readOnly]);
+
   const archetypes = [
     { value: '', label: 'Select a brand archetype...' },
-    { value: 'hero', label: 'The Hero', description: 'Courageous, bold, inspirational — proves worth through brave acts' },
-    { value: 'sage', label: 'The Sage', description: 'Wise, knowledgeable, thoughtful — seeks truth and shares wisdom' },
-    { value: 'explorer', label: 'The Explorer', description: 'Independent, adventurous, pioneering — finds fulfillment through discovery' },
-    { value: 'innocent', label: 'The Innocent', description: 'Pure, optimistic, simple — seeks happiness and spreads positivity' },
-    { value: 'creator', label: 'The Creator', description: 'Innovative, imaginative, artistic — creates enduring value and meaning' },
-    { value: 'ruler', label: 'The Ruler', description: 'Authoritative, organized, responsible — creates order and structure' },
-    { value: 'caregiver', label: 'The Caregiver', description: 'Compassionate, nurturing, generous — protects and cares for others' },
-    { value: 'magician', label: 'The Magician', description: 'Visionary, charismatic, transformative — makes dreams come true' },
-    { value: 'lover', label: 'The Lover', description: 'Passionate, intimate, appreciative — creates intimacy and inspiration' },
-    { value: 'jester', label: 'The Jester', description: 'Playful, humorous, irreverent — brings joy and lives in the moment' },
-    { value: 'everyman', label: 'The Everyman', description: 'Friendly, humble, relatable — connects with solid virtues and common touch' },
-    { value: 'rebel', label: 'The Rebel', description: 'Revolutionary, disruptive, liberating — breaks rules and challenges the status quo' },
+    { value: 'hero', label: 'The Hero' },
+    { value: 'sage', label: 'The Sage' },
+    { value: 'explorer', label: 'The Explorer' },
+    { value: 'innocent', label: 'The Innocent' },
+    { value: 'creator', label: 'The Creator' },
+    { value: 'ruler', label: 'The Ruler' },
+    { value: 'caregiver', label: 'The Caregiver' },
+    { value: 'magician', label: 'The Magician' },
+    { value: 'lover', label: 'The Lover' },
+    { value: 'jester', label: 'The Jester' },
+    { value: 'everyman', label: 'The Everyman' },
+    { value: 'rebel', label: 'The Rebel' },
   ];
+
+  const inputClass = "w-full px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE]";
 
   return (
     <div className="space-y-4">
@@ -51,33 +262,60 @@ export function PersonalityTab({ data }: PersonalityTabProps) {
             <p className="text-sm text-[#6B7280] mb-3">
               Select 4-6 adjectives that describe your brand's personality
             </p>
-            {data.traits.map((trait, index) => (
-              <div key={index} className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  defaultValue={trait}
-                  className="flex-1 px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE]"
+            {traits.map((trait: string, index: number) => (
+              <div key={`trait-${index}-${trait}`} className="flex gap-2 mb-2">
+                <ControlledInput
+                  value={trait}
+                  onSave={(value) => saveSimpleArrayItem(['personality_and_tone', 'brand_personality_traits'], index, value)}
+                  readOnly={readOnly}
+                  className="flex-1 px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm"
                 />
-                <button className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2] transition-colors">
-                  <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" />
-                </button>
+                {!readOnly && (
+                  <button
+                    onClick={() => handleRemoveFromArray(['personality_and_tone', 'brand_personality_traits'], index)}
+                    className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2] transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             ))}
-            <button className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md transition-colors flex items-center gap-2">
-              <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
-              Add Trait
-            </button>
+            {traits.length === 0 && <p className="text-sm text-[#9CA3AF] mb-2">No traits added yet.</p>}
+            {!readOnly && (
+              <button
+                onClick={() => handleAddToArray(['personality_and_tone', 'brand_personality_traits'], '')}
+                className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md transition-colors flex items-center gap-2"
+              >
+                <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
+                Add Trait
+              </button>
+            )}
           </FormField>
 
-          <FormField label="Brand Archetype">
-            <select className="w-full px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE]">
-              {archetypes.map((archetype) => (
-                <option key={archetype.value} value={archetype.value}>
-                  {archetype.label}
-                  {archetype.description && ` — ${archetype.description}`}
-                </option>
+          <FormField label="Primary Brand Archetype">
+            <ControlledSelect
+              value={archetype.primary || ''}
+              onSave={(value) => saveField(['personality_and_tone', 'brand_archetype', 'primary'], value)}
+              readOnly={readOnly}
+              className={inputClass}
+            >
+              {archetypes.map((a) => (
+                <option key={a.value} value={a.value}>{a.label}</option>
               ))}
-            </select>
+            </ControlledSelect>
+          </FormField>
+
+          <FormField label="Secondary Brand Archetype">
+            <ControlledSelect
+              value={archetype.secondary || ''}
+              onSave={(value) => saveField(['personality_and_tone', 'brand_archetype', 'secondary'], value)}
+              readOnly={readOnly}
+              className={inputClass}
+            >
+              {archetypes.map((a) => (
+                <option key={a.value} value={a.value}>{a.label}</option>
+              ))}
+            </ControlledSelect>
             <p className="text-xs text-[#6B7280] mt-2">
               Archetypes help define your brand's fundamental character and purpose
             </p>
@@ -96,22 +334,34 @@ export function PersonalityTab({ data }: PersonalityTabProps) {
             <p className="text-sm text-[#6B7280] mb-3">
               How does your brand sound when it speaks? (These remain consistent)
             </p>
-            {data.voiceCharacteristics.map((characteristic, index) => (
-              <div key={index} className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  defaultValue={characteristic}
-                  className="flex-1 px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE]"
+            {voiceChars.map((characteristic: string, index: number) => (
+              <div key={`voice-${index}-${characteristic}`} className="flex gap-2 mb-2">
+                <ControlledInput
+                  value={characteristic}
+                  onSave={(value) => saveSimpleArrayItem(['personality_and_tone', 'voice_characteristics'], index, value)}
+                  readOnly={readOnly}
+                  className="flex-1 px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm"
                 />
-                <button className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2] transition-colors">
-                  <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" />
-                </button>
+                {!readOnly && (
+                  <button
+                    onClick={() => handleRemoveFromArray(['personality_and_tone', 'voice_characteristics'], index)}
+                    className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2] transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             ))}
-            <button className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md transition-colors flex items-center gap-2">
-              <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
-              Add Characteristic
-            </button>
+            {voiceChars.length === 0 && <p className="text-sm text-[#9CA3AF] mb-2">No voice characteristics added yet.</p>}
+            {!readOnly && (
+              <button
+                onClick={() => handleAddToArray(['personality_and_tone', 'voice_characteristics'], '')}
+                className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md transition-colors flex items-center gap-2"
+              >
+                <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
+                Add Characteristic
+              </button>
+            )}
           </FormField>
         </div>
       </Section>
@@ -129,81 +379,75 @@ export function PersonalityTab({ data }: PersonalityTabProps) {
 
           <div className="p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-md">
             <h4 className="text-sm font-medium text-[#1F2937] mb-3">Website Copy</h4>
-            <textarea
-              placeholder="Describe the tone for website content (e.g., professional yet approachable, informative without being overwhelming)..."
+            <ControlledTextarea
+              value={toneVariations.website_copy || ''}
+              onSave={(value) => saveField(['personality_and_tone', 'tone_variations_by_context', 'website_copy'], value)}
+              readOnly={readOnly}
+              placeholder="Describe the tone for website content..."
               rows={3}
-              className="w-full px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE] resize-y"
+              className={inputClass + " resize-y"}
             />
           </div>
 
           <div className="p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-md">
             <h4 className="text-sm font-medium text-[#1F2937] mb-3">Social Media</h4>
-            <textarea
-              placeholder="Describe the tone for social media posts (e.g., casual and conversational, engaging with personality)..."
+            <ControlledTextarea
+              value={toneVariations.social_media || ''}
+              onSave={(value) => saveField(['personality_and_tone', 'tone_variations_by_context', 'social_media'], value)}
+              readOnly={readOnly}
+              placeholder="Describe the tone for social media posts..."
               rows={3}
-              className="w-full px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE] resize-y"
+              className={inputClass + " resize-y"}
             />
           </div>
 
           <div className="p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-md">
             <h4 className="text-sm font-medium text-[#1F2937] mb-3">Advertising</h4>
-            <textarea
-              placeholder="Describe the tone for advertising (e.g., bold and attention-grabbing, benefit-focused)..."
+            <ControlledTextarea
+              value={toneVariations.advertising || ''}
+              onSave={(value) => saveField(['personality_and_tone', 'tone_variations_by_context', 'advertising'], value)}
+              readOnly={readOnly}
+              placeholder="Describe the tone for advertising..."
               rows={3}
-              className="w-full px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE] resize-y"
+              className={inputClass + " resize-y"}
             />
           </div>
 
           <div className="p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-md">
             <h4 className="text-sm font-medium text-[#1F2937] mb-3">Email Marketing</h4>
-            <textarea
-              placeholder="Describe the tone for email campaigns (e.g., personal and direct, value-driven)..."
+            <ControlledTextarea
+              value={toneVariations.email_marketing || ''}
+              onSave={(value) => saveField(['personality_and_tone', 'tone_variations_by_context', 'email_marketing'], value)}
+              readOnly={readOnly}
+              placeholder="Describe the tone for email campaigns..."
               rows={3}
-              className="w-full px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE] resize-y"
+              className={inputClass + " resize-y"}
             />
           </div>
 
           <div className="p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-md">
             <h4 className="text-sm font-medium text-[#1F2937] mb-3">Client/Patient Communication</h4>
-            <textarea
-              placeholder="Describe the tone for direct communication with clients (e.g., warm and reassuring, respectful and professional)..."
+            <ControlledTextarea
+              value={toneVariations.client_to_patient_communication || ''}
+              onSave={(value) => saveField(['personality_and_tone', 'tone_variations_by_context', 'client_to_patient_communication'], value)}
+              readOnly={readOnly}
+              placeholder="Describe the tone for direct client communication..."
               rows={3}
-              className="w-full px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE] resize-y"
+              className={inputClass + " resize-y"}
             />
           </div>
 
           <div className="p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-md">
             <h4 className="text-sm font-medium text-[#1F2937] mb-3">Agency to Client Communications</h4>
-            <textarea
-              placeholder="Describe the tone for internal/agency communications (e.g., collaborative and strategic, clear and concise)..."
+            <ControlledTextarea
+              value={toneVariations.agency_to_client_communications || ''}
+              onSave={(value) => saveField(['personality_and_tone', 'tone_variations_by_context', 'agency_to_client_communications'], value)}
+              readOnly={readOnly}
+              placeholder="Describe the tone for agency communications..."
               rows={3}
-              className="w-full px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE] resize-y"
+              className={inputClass + " resize-y"}
             />
           </div>
-
-          <div className="p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-md">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-medium text-[#1F2937]">Custom Context</h4>
-              <button className="px-2 py-1 text-xs text-[#DC2626] hover:bg-[#FEE2E2] rounded transition-colors">
-                <FontAwesomeIcon icon={faTrash} className="w-3 h-3" />
-              </button>
-            </div>
-            <input
-              type="text"
-              placeholder="Context name (e.g., Trade Show Materials, Crisis Communication)"
-              className="w-full px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE] mb-3"
-            />
-            <textarea
-              placeholder="Describe the tone for this context..."
-              rows={3}
-              className="w-full px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE] resize-y"
-            />
-          </div>
-
-          <button className="px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md transition-colors flex items-center gap-2">
-            <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
-            Add Custom Context
-          </button>
         </div>
       </Section>
 
@@ -214,83 +458,159 @@ export function PersonalityTab({ data }: PersonalityTabProps) {
         onToggle={() => toggleSection('language')}
       >
         <div className="space-y-4">
-          <FormField label="Words & Phrases to Use">
+          <FormField label="Preferred Terminology">
             <p className="text-sm text-[#6B7280] mb-3">
-              Power words that align with your brand
+              Define preferred terms and what to use instead
             </p>
-            {data.wordsToUse.map((word, index) => (
-              <div key={index} className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  defaultValue={word}
-                  className="flex-1 px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE]"
+            {preferredTerms.map((term: { use: string; instead_of: string }, index: number) => (
+              <div key={`term-${index}-${term.use}`} className="flex gap-2 mb-2 items-center">
+                <span className="text-sm text-[#6B7280] w-10">Use:</span>
+                <ControlledInput
+                  value={term.use || ''}
+                  onSave={(value) => saveArrayItemField(['personality_and_tone', 'language_guidelines', 'preferred_terminology'], index, 'use', value)}
+                  readOnly={readOnly}
+                  placeholder="Preferred term"
+                  className="flex-1 px-3 py-2 bg-white border border-[#D1D5DB] rounded-md text-sm"
                 />
-                <button className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2] transition-colors">
-                  <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" />
-                </button>
+                <span className="text-sm text-[#6B7280] w-20">Instead of:</span>
+                <ControlledInput
+                  value={term.instead_of || ''}
+                  onSave={(value) => saveArrayItemField(['personality_and_tone', 'language_guidelines', 'preferred_terminology'], index, 'instead_of', value)}
+                  readOnly={readOnly}
+                  placeholder="Avoid this term"
+                  className="flex-1 px-3 py-2 bg-white border border-[#D1D5DB] rounded-md text-sm"
+                />
+                {!readOnly && (
+                  <button
+                    onClick={() => handleRemoveFromArray(['personality_and_tone', 'language_guidelines', 'preferred_terminology'], index)}
+                    className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2] transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             ))}
-            <button className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md transition-colors flex items-center gap-2">
-              <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
-              Add Word
-            </button>
+            {preferredTerms.length === 0 && <p className="text-sm text-[#9CA3AF] mb-2">No preferred terminology added yet.</p>}
+            {!readOnly && (
+              <button
+                onClick={() => handleAddToArray(['personality_and_tone', 'language_guidelines', 'preferred_terminology'], { use: '', instead_of: '' })}
+                className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md transition-colors flex items-center gap-2"
+              >
+                <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
+                Add Term
+              </button>
+            )}
           </FormField>
 
           <FormField label="Words & Phrases to Avoid">
             <p className="text-sm text-[#6B7280] mb-3">
               Terms that don't align with your brand voice
             </p>
-            {data.wordsToAvoid.map((word, index) => (
-              <div key={index} className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  defaultValue={word}
-                  className="flex-1 px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE]"
+            {wordsToAvoid.map((word: string, index: number) => (
+              <div key={`avoid-${index}-${word}`} className="flex gap-2 mb-2">
+                <ControlledInput
+                  value={word}
+                  onSave={(value) => saveSimpleArrayItem(['personality_and_tone', 'language_guidelines', 'words_to_avoid'], index, value)}
+                  readOnly={readOnly}
+                  className="flex-1 px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm"
                 />
-                <button className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2] transition-colors">
-                  <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" />
-                </button>
+                {!readOnly && (
+                  <button
+                    onClick={() => handleRemoveFromArray(['personality_and_tone', 'language_guidelines', 'words_to_avoid'], index)}
+                    className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2] transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             ))}
-            <button className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md transition-colors flex items-center gap-2">
-              <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
-              Add Word
-            </button>
+            {wordsToAvoid.length === 0 && <p className="text-sm text-[#9CA3AF] mb-2">No words to avoid added yet.</p>}
+            {!readOnly && (
+              <button
+                onClick={() => handleAddToArray(['personality_and_tone', 'language_guidelines', 'words_to_avoid'], '')}
+                className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md transition-colors flex items-center gap-2"
+              >
+                <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
+                Add Word
+              </button>
+            )}
           </FormField>
 
-          <FormField label="Grammar & Style Preferences">
-            <div className="space-y-3">
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 text-[#4074A8] border-[#D1D5DB] rounded focus:ring-[#4074A8]"
+          <FormField label="Industry-Specific Language">
+            <p className="text-sm text-[#6B7280] mb-3">
+              Terminology specific to your industry
+            </p>
+            {industryLanguage.map((term: string, index: number) => (
+              <div key={`industry-${index}-${term}`} className="flex gap-2 mb-2">
+                <ControlledInput
+                  value={term}
+                  onSave={(value) => saveSimpleArrayItem(['personality_and_tone', 'language_guidelines', 'industry_specific_language'], index, value)}
+                  readOnly={readOnly}
+                  className="flex-1 px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm"
                 />
-                <span className="text-sm text-[#1F2937]">Use Oxford comma</span>
-              </label>
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  defaultChecked
-                  className="w-4 h-4 text-[#4074A8] border-[#D1D5DB] rounded focus:ring-[#4074A8]"
+                {!readOnly && (
+                  <button
+                    onClick={() => handleRemoveFromArray(['personality_and_tone', 'language_guidelines', 'industry_specific_language'], index)}
+                    className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2] transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+            {industryLanguage.length === 0 && <p className="text-sm text-[#9CA3AF] mb-2">No industry terms added yet.</p>}
+            {!readOnly && (
+              <button
+                onClick={() => handleAddToArray(['personality_and_tone', 'language_guidelines', 'industry_specific_language'], '')}
+                className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md transition-colors flex items-center gap-2"
+              >
+                <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
+                Add Term
+              </button>
+            )}
+          </FormField>
+        </div>
+      </Section>
+
+      {/* Inclusive Language Standards */}
+      <Section
+        title="Inclusive Language Standards"
+        expanded={expandedSections.has('inclusive')}
+        onToggle={() => toggleSection('inclusive')}
+      >
+        <div className="space-y-4">
+          <FormField label="Inclusive Language Guidelines">
+            <p className="text-sm text-[#6B7280] mb-3">
+              Guidelines for inclusive and respectful communication
+            </p>
+            {inclusiveStandards.map((standard: string, index: number) => (
+              <div key={`inclusive-${index}-${standard}`} className="flex gap-2 mb-2">
+                <ControlledInput
+                  value={standard}
+                  onSave={(value) => saveSimpleArrayItem(['personality_and_tone', 'inclusive_language_standards'], index, value)}
+                  readOnly={readOnly}
+                  className="flex-1 px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm"
                 />
-                <span className="text-sm text-[#1F2937]">Use contractions (we're, don't, etc.)</span>
-              </label>
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 text-[#4074A8] border-[#D1D5DB] rounded focus:ring-[#4074A8]"
-                />
-                <span className="text-sm text-[#1F2937]">Use sentence fragments for emphasis</span>
-              </label>
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  defaultChecked
-                  className="w-4 h-4 text-[#4074A8] border-[#D1D5DB] rounded focus:ring-[#4074A8]"
-                />
-                <span className="text-sm text-[#1F2937]">Use active voice over passive</span>
-              </label>
-            </div>
+                {!readOnly && (
+                  <button
+                    onClick={() => handleRemoveFromArray(['personality_and_tone', 'inclusive_language_standards'], index)}
+                    className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2] transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+            {inclusiveStandards.length === 0 && <p className="text-sm text-[#9CA3AF] mb-2">No standards added yet.</p>}
+            {!readOnly && (
+              <button
+                onClick={() => handleAddToArray(['personality_and_tone', 'inclusive_language_standards'], '')}
+                className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md transition-colors flex items-center gap-2"
+              >
+                <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
+                Add Guideline
+              </button>
+            )}
           </FormField>
         </div>
       </Section>
@@ -298,39 +618,19 @@ export function PersonalityTab({ data }: PersonalityTabProps) {
   );
 }
 
-interface SectionProps {
-  title: string;
-  expanded: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-}
-
-function Section({ title, expanded, onToggle, children }: SectionProps) {
+function Section({ title, expanded, onToggle, children }: { title: string; expanded: boolean; onToggle: () => void; children: React.ReactNode }) {
   return (
     <div className="bg-white border border-[#E5E7EB] rounded-lg shadow-sm">
-      <button
-        onClick={onToggle}
-        className="w-full px-6 py-4 flex items-center justify-between hover:bg-[#F9FAFB] transition-colors"
-      >
-        <h3 className="text-base font-semibold text-[#374151] text-[16px]">{title}</h3>
-        <FontAwesomeIcon
-          icon={expanded ? faChevronDown : faChevronRight}
-          className="w-4 h-4 text-[#6B7280]"
-        />
+      <button onClick={onToggle} className="w-full px-6 py-4 flex items-center justify-between hover:bg-[#F9FAFB] transition-colors">
+        <h3 className="text-base font-semibold text-[#374151]">{title}</h3>
+        <FontAwesomeIcon icon={expanded ? faChevronDown : faChevronRight} className="w-4 h-4 text-[#6B7280]" />
       </button>
-      {expanded && (
-        <div className="px-6 pb-6 border-t border-[#E5E7EB] pt-4">{children}</div>
-      )}
+      {expanded && <div className="px-6 pb-6 border-t border-[#E5E7EB] pt-4">{children}</div>}
     </div>
   );
 }
 
-interface FormFieldProps {
-  label: string;
-  children: React.ReactNode;
-}
-
-function FormField({ label, children }: FormFieldProps) {
+function FormField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <label className="block text-sm font-medium text-[#374151] mb-2">{label}</label>

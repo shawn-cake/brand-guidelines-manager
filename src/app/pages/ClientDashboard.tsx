@@ -6,6 +6,9 @@ import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
 import { FoundationsTab } from '@/app/components/tabs/FoundationsTab';
+import { PersonalityTab } from '@/app/components/tabs/PersonalityTab';
+import { AudiencesTab } from '@/app/components/tabs/AudiencesTab';
+import { VisualIdentityTab } from '@/app/components/tabs/VisualIdentityTab';
 import { VersionHistoryPanel } from '@/app/components/VersionHistoryPanel';
 import { ExportDropdown } from '@/app/components/ExportDropdown';
 
@@ -107,13 +110,6 @@ export function ClientDashboard() {
     { id: 'audiences', label: 'Target Audiences' },
     { id: 'visual', label: 'Visual Identity' },
   ];
-
-  const ComingSoonTab = ({ name }: { name: string }) => (
-    <div className="text-center py-12">
-      <p className="text-[#6B7280]">{name} tab coming soon.</p>
-      <p className="text-sm text-[#9CA3AF] mt-2">This tab is being updated to work with the new data structure.</p>
-    </div>
-  );
 
   // Determine which data to display - version data or current draft
   // viewingVersion will be undefined while loading, null if not found, or the version object
@@ -252,9 +248,33 @@ export function ClientDashboard() {
               readOnly={isViewingVersion}
             />
           )}
-          {activeTab === 'visual' && <ComingSoonTab name="Visual Identity" />}
-          {activeTab === 'personality' && <ComingSoonTab name="Personality & Tone" />}
-          {activeTab === 'audiences' && <ComingSoonTab name="Target Audiences" />}
+          {activeTab === 'personality' && (
+            <PersonalityTab
+              key={`personality-${viewingVersionId ? String(viewingVersionId) : 'current-draft'}`}
+              clientId={client._id}
+              data={displayData.personality_and_tone}
+              fullData={displayData}
+              readOnly={isViewingVersion}
+            />
+          )}
+          {activeTab === 'audiences' && (
+            <AudiencesTab
+              key={`audiences-${viewingVersionId ? String(viewingVersionId) : 'current-draft'}`}
+              clientId={client._id}
+              data={displayData.target_audiences}
+              fullData={displayData}
+              readOnly={isViewingVersion}
+            />
+          )}
+          {activeTab === 'visual' && (
+            <VisualIdentityTab
+              key={`visual-${viewingVersionId ? String(viewingVersionId) : 'current-draft'}`}
+              clientId={client._id}
+              data={displayData.visual_identity}
+              fullData={displayData}
+              readOnly={isViewingVersion}
+            />
+          )}
         </div>
       </div>
 
