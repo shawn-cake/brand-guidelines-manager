@@ -1,12 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUpload, faDownload, faClockRotateLeft, faCheck, faShareNodes } from '@fortawesome/free-solid-svg-icons';
-import { mockClients, mockGuideline } from '@/app/data/mockData';
+import { faUpload, faDownload, faClockRotateLeft, faCheck, faShareNodes, faSpinner, faPen } from '@fortawesome/free-solid-svg-icons';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
+import { Id } from '../../../convex/_generated/dataModel';
 import { FoundationsTab } from '@/app/components/tabs/FoundationsTab';
-import { VisualIdentityTab } from '@/app/components/tabs/VisualIdentityTab';
-import { PersonalityTab } from '@/app/components/tabs/PersonalityTab';
-import { AudiencesTab } from '@/app/components/tabs/AudiencesTab';
 import { VersionHistoryPanel } from '@/app/components/VersionHistoryPanel';
 import { ExportDropdown } from '@/app/components/ExportDropdown';
 
@@ -17,9 +16,78 @@ export function ClientDashboard() {
   const [activeTab, setActiveTab] = useState<TabType>('foundations');
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
-  const client = mockClients.find((c) => c.id === clientId);
-  if (!client) return null;
+  const client = useQuery(
+    api.clients.get, 
+    clientId ? { id: clientId as Id<"clients"> } : "skip"
+  );
+  
+  const updateMetadata = useMutation(api.clients.updateMetadata);
+
+  // Focus input when entering edit mode
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isEditingName]);
+
+  // Update local state when client data loads
+  useEffect(() => {
+    if (client) {
+      setEditedName(client.client_name);
+    }
+  }, [client]);
+
+  const handleNameSave = async () => {
+    if (!client || editedName.trim() === '') return;
+    
+    try {
+      await updateMetadata({ 
+        id: client._id, 
+        client_name: editedName.trim() 
+      });
+      setIsEditingName(false);
+    } catch (error) {
+      console.error('Failed to update name:', error);
+    }
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleNameSave();
+    } else if (e.key === 'Escape') {
+      setEditedName(client?.client_name || '');
+      setIsEditingName(false);
+    }
+  };
+
+  // Loading state
+  if (client === undefined) {
+    return (
+      <div className="h-full flex items-center justify-center bg-[#F9FAFB]">
+        <div className="flex items-center gap-3 text-[#6B7280]">
+          <FontAwesomeIcon icon={faSpinner} className="w-5 h-5 animate-spin" />
+          <span>Loading client...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Client not found
+  if (client === null) {
+    return (
+      <div className="h-full flex items-center justify-center bg-[#F9FAFB]">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-[#1F2937] mb-2">Client not found</h2>
+          <p className="text-[#6B7280]">This client may have been deleted.</p>
+        </div>
+      </div>
+    );
+  }
 
   const tabs: { id: TabType; label: string }[] = [
     { id: 'foundations', label: 'Foundations' },
@@ -28,15 +96,44 @@ export function ClientDashboard() {
     { id: 'visual', label: 'Visual Identity' },
   ];
 
+  const ComingSoonTab = ({ name }: { name: string }) => (
+    <div className="text-center py-12">
+      <p className="text-[#6B7280]">{name} tab coming soon.</p>
+      <p className="text-sm text-[#9CA3AF] mt-2">This tab is being updated to work with the new data structure.</p>
+    </div>
+  );
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="bg-white border-b border-[#E5E7EB] px-8 py-6">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold text-[#1F2937] text-[32px]">{client.name}</h1>
+            {isEditingName ? (
+              <input
+                ref={nameInputRef}
+                type="text"
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                onBlur={handleNameSave}
+                onKeyDown={handleNameKeyDown}
+                className="text-2xl font-semibold text-[#1F2937] bg-white border border-[#4074A8] rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#4074A8]"
+                style={{ fontSize: '32px' }}
+              />
+            ) : (
+              <div className="flex items-center gap-2 group">
+                <h1 className="text-2xl font-semibold text-[#1F2937] text-[32px]">{client.client_name}</h1>
+                <button
+                  onClick={() => setIsEditingName(true)}
+                  className="p-1 text-[#9CA3AF] hover:text-[#4074A8] opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Edit client name"
+                >
+                  <FontAwesomeIcon icon={faPen} className="w-4 h-4" />
+                </button>
+              </div>
+            )}
             <span className="px-2 py-0.5 bg-[#FDE9B8] text-[#B87D0E] text-xs font-medium rounded">
-              {client.currentVersion}
+              v{client.current_version || '1.0'}
             </span>
           </div>
           <div className="flex items-center gap-4">
@@ -58,7 +155,10 @@ export function ClientDashboard() {
                   Export
                 </button>
                 {showExportDropdown && (
-                  <ExportDropdown onClose={() => setShowExportDropdown(false)} />
+                  <ExportDropdown 
+                    client={client}
+                    onClose={() => setShowExportDropdown(false)} 
+                  />
                 )}
               </div>
               <button className="px-4 py-2 bg-white border border-[#D1D5DB] text-[#374151] rounded-md hover:bg-[#F9FAFB] transition-colors text-sm font-medium flex items-center gap-2">
@@ -98,16 +198,25 @@ export function ClientDashboard() {
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto bg-[#F9FAFB]">
         <div className="max-w-[800px] mx-auto py-8 px-8">
-          {activeTab === 'foundations' && <FoundationsTab data={mockGuideline.foundations} />}
-          {activeTab === 'visual' && <VisualIdentityTab data={mockGuideline.visualIdentity} />}
-          {activeTab === 'personality' && <PersonalityTab data={mockGuideline.personality} />}
-          {activeTab === 'audiences' && <AudiencesTab data={mockGuideline.audiences} />}
+          {activeTab === 'foundations' && (
+            <FoundationsTab 
+              clientId={client._id}
+              data={client.data.foundations} 
+              fullData={client.data}
+            />
+          )}
+          {activeTab === 'visual' && <ComingSoonTab name="Visual Identity" />}
+          {activeTab === 'personality' && <ComingSoonTab name="Personality & Tone" />}
+          {activeTab === 'audiences' && <ComingSoonTab name="Target Audiences" />}
         </div>
       </div>
 
       {/* Version History Panel */}
       {showVersionHistory && (
-        <VersionHistoryPanel onClose={() => setShowVersionHistory(false)} />
+        <VersionHistoryPanel 
+          clientId={client._id}
+          onClose={() => setShowVersionHistory(false)} 
+        />
       )}
     </div>
   );
