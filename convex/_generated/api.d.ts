@@ -8,7 +8,10 @@
  * @module
  */
 
+import type * as claudeExtraction from "../claudeExtraction.js";
 import type * as clients from "../clients.js";
+import type * as documentImports from "../documentImports.js";
+import type * as documentParsing from "../documentParsing.js";
 import type * as versions from "../versions.js";
 
 import type {
@@ -18,7 +21,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  claudeExtraction: typeof claudeExtraction;
   clients: typeof clients;
+  documentImports: typeof documentImports;
+  documentParsing: typeof documentParsing;
   versions: typeof versions;
 }>;
 

@@ -5,6 +5,7 @@ import { faPlus, faArrowDownAZ, faCalendarDays, faTrash } from '@fortawesome/fre
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
+import { APP_VERSION, COMPANY_NAME } from '../../version';
 
 type SortType = 'name' | 'date';
 
@@ -70,9 +71,14 @@ export function Sidebar() {
       <div className="p-4 border-b border-[#E5E7EB]">
         <div className="mb-6">
           <h2 className="text-base font-semibold text-[#1F2937] text-[20px]">Brand Guidelines Manager</h2>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-[#6B7280]">{COMPANY_NAME}</span>
+            <span className="text-xs text-[#9CA3AF]">•</span>
+            <span className="text-xs text-[#9CA3AF]">v{APP_VERSION}</span>
+          </div>
         </div>
 
-        <button 
+        <button
           onClick={handleNewClient}
           className="w-full bg-[#4074A8] text-white px-4 py-2.5 rounded-md hover:bg-[#2D5276] transition-colors flex items-center justify-center gap-2 text-sm font-medium"
         >

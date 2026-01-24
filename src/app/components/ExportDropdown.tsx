@@ -245,7 +245,8 @@ export function ExportDropdown({ client, onClose }: ExportDropdownProps) {
 
   const handleExportMarkdown = () => {
     const markdown = generateMarkdown();
-    const filename = `${client.client_name.toLowerCase().replace(/\s+/g, '-')}-brand-guidelines.md`;
+    const version = client.current_version || '1.0';
+    const filename = `${client.client_name.toLowerCase().replace(/\s+/g, '-')}-brand-guidelines-v${version}.md`;
     downloadFile(markdown, filename, 'text/markdown');
   };
 
@@ -256,7 +257,8 @@ export function ExportDropdown({ client, onClose }: ExportDropdownProps) {
 
   const handleExportJSON = () => {
     const json = generateJSON();
-    const filename = `${client.client_name.toLowerCase().replace(/\s+/g, '-')}-brand-guidelines.json`;
+    const version = client.current_version || '1.0';
+    const filename = `${client.client_name.toLowerCase().replace(/\s+/g, '-')}-brand-guidelines-v${version}.json`;
     downloadFile(json, filename, 'application/json');
   };
 

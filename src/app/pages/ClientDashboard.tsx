@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUpload, faDownload, faClockRotateLeft, faCheck, faShareNodes, faSpinner, faPen, faArrowLeft } from '@fortawesome/free-solid-svg-icons';
+import { faUpload, faDownload, faClockRotateLeft, faCheck, faShareNodes, faSpinner, faPen, faArrowLeft, faFileImport } from '@fortawesome/free-solid-svg-icons';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
@@ -11,6 +11,8 @@ import { AudiencesTab } from '@/app/components/tabs/AudiencesTab';
 import { VisualIdentityTab } from '@/app/components/tabs/VisualIdentityTab';
 import { VersionHistoryPanel } from '@/app/components/VersionHistoryPanel';
 import { ExportDropdown } from '@/app/components/ExportDropdown';
+import { ImportDocumentModal } from '@/app/components/ImportDocumentModal';
+import { ReviewExtractedFieldsModal } from '@/app/components/ReviewExtractedFieldsModal';
 
 type TabType = 'foundations' | 'personality' | 'audiences' | 'visual';
 
@@ -19,6 +21,8 @@ export function ClientDashboard() {
   const [activeTab, setActiveTab] = useState<TabType>('foundations');
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [reviewImportId, setReviewImportId] = useState<Id<"document_imports"> | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
   const [viewingVersionId, setViewingVersionId] = useState<Id<"versions"> | null>(null);
@@ -28,6 +32,17 @@ export function ClientDashboard() {
     api.clients.get,
     clientId ? { id: clientId as Id<"clients"> } : "skip"
   );
+
+  // Fetch document imports for this client
+  const documentImports = useQuery(
+    api.documentImports.listByClient,
+    clientId ? { clientId: clientId as Id<"clients"> } : "skip"
+  );
+
+  // Find imports ready for review
+  const pendingReviewImports = documentImports?.filter(
+    (imp) => imp.status === "ready_for_review"
+  ) || [];
 
   // Fetch the version being viewed (if any)
   const viewingVersion = useQuery(
@@ -158,12 +173,11 @@ export function ClientDashboard() {
                 onChange={(e) => setEditedName(e.target.value)}
                 onBlur={handleNameSave}
                 onKeyDown={handleNameKeyDown}
-                className="text-2xl font-semibold text-[#1F2937] bg-white border border-[#4074A8] rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#4074A8]"
-                style={{ fontSize: '32px' }}
+                className="text-[32px] font-semibold text-[#1F2937] bg-white border border-[#4074A8] rounded px-2 py-0 focus:outline-none focus:ring-2 focus:ring-[#4074A8] h-[44px] leading-none"
               />
             ) : (
               <div className="flex items-center gap-2 group">
-                <h1 className="text-2xl font-semibold text-[#1F2937] text-[32px]">{client.client_name}</h1>
+                <h1 className="text-[32px] font-semibold text-[#1F2937] leading-none h-[44px] flex items-center">{client.client_name}</h1>
                 <button
                   onClick={() => setIsEditingName(true)}
                   className="p-1 text-[#9CA3AF] hover:text-[#4074A8] opacity-0 group-hover:opacity-100 transition-opacity"
@@ -183,7 +197,23 @@ export function ClientDashboard() {
               <span>All changes saved</span>
             </div>
             <div className="flex gap-2">
-              <button className="px-4 py-2 bg-white border border-[#D1D5DB] text-[#374151] rounded-md hover:bg-[#F9FAFB] transition-colors text-sm font-medium flex items-center gap-2">
+              {/* Review Imports Button - shows when there are imports ready for review */}
+              {pendingReviewImports.length > 0 && (
+                <button
+                  onClick={() => setReviewImportId(pendingReviewImports[0]._id)}
+                  className="px-4 py-2 bg-[#059669] text-white rounded-md hover:bg-[#047857] transition-colors text-sm font-medium flex items-center gap-2"
+                >
+                  <FontAwesomeIcon icon={faFileImport} className="w-3.5 h-3.5" />
+                  Review Import
+                  <span className="bg-white text-[#059669] text-xs font-bold px-1.5 py-0.5 rounded-full">
+                    {pendingReviewImports.length}
+                  </span>
+                </button>
+              )}
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="px-4 py-2 bg-white border border-[#D1D5DB] text-[#374151] rounded-md hover:bg-[#F9FAFB] transition-colors text-sm font-medium flex items-center gap-2"
+              >
                 <FontAwesomeIcon icon={faUpload} className="w-3.5 h-3.5" />
                 Import
               </button>
@@ -237,7 +267,7 @@ export function ClientDashboard() {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto bg-[#F9FAFB]">
+      <div className="flex-1 overflow-y-scroll bg-[#F9FAFB]">
         <div className="max-w-[800px] mx-auto py-8 px-8">
           {activeTab === 'foundations' && (
             <FoundationsTab
@@ -285,6 +315,24 @@ export function ClientDashboard() {
           viewingVersionId={viewingVersionId}
           onClose={() => setShowVersionHistory(false)}
           onViewVersion={setViewingVersionId}
+        />
+      )}
+
+      {/* Import Document Modal */}
+      <ImportDocumentModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        clientId={client._id}
+        clientName={client.client_name}
+      />
+
+      {/* Review Extracted Fields Modal */}
+      {reviewImportId && (
+        <ReviewExtractedFieldsModal
+          isOpen={!!reviewImportId}
+          onClose={() => setReviewImportId(null)}
+          importId={reviewImportId}
+          clientId={client._id}
         />
       )}
     </div>

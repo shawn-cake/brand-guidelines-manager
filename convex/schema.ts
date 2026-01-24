@@ -3,10 +3,10 @@ import { v } from "convex/values";
 
 // Reusable validator for asset fields (logo images, templates, etc.)
 const assetValidator = v.object({
-  type: v.union(v.literal("upload"), v.literal("url")),
+  type: v.optional(v.union(v.literal("upload"), v.literal("url"))),
   file_id: v.optional(v.string()),
   url: v.optional(v.string()),
-  filename: v.string(),
+  filename: v.optional(v.string()),
   alt_text: v.optional(v.string()),
   uploaded_at: v.optional(v.number()),
 });
@@ -16,17 +16,17 @@ const optionalAssetValidator = v.optional(assetValidator);
 
 // Physical address validator
 const addressValidator = v.object({
-  label: v.string(),
-  street: v.string(),
-  city: v.string(),
-  state: v.string(),
-  zip: v.string(),
+  label: v.optional(v.string()),
+  street: v.optional(v.string()),
+  city: v.optional(v.string()),
+  state: v.optional(v.string()),
+  zip: v.optional(v.string()),
 });
 
 // Color swatch validator
 const colorSwatchValidator = v.object({
-  name: v.string(),
-  hex: v.string(),
+  name: v.optional(v.string()),
+  hex: v.optional(v.string()),
   rgb: v.optional(v.string()),
   cmyk: v.optional(v.string()),
   pantone: v.optional(v.string()),
@@ -67,8 +67,8 @@ const clientDataValidator = v.object({
         twitter: v.optional(v.string()),
       })),
       other_media: v.optional(v.array(v.object({
-        type: v.string(),
-        name: v.string(),
+        type: v.optional(v.string()),
+        name: v.optional(v.string()),
         url: v.optional(v.string()),
       }))),
     }),
@@ -82,15 +82,15 @@ const clientDataValidator = v.object({
     }),
     services_and_providers: v.object({
       services: v.optional(v.array(v.object({
-        name: v.string(),
+        name: v.optional(v.string()),
         page_url: v.optional(v.string()),
       }))),
       key_services_to_promote: v.optional(v.array(v.object({
-        service_name: v.string(),
+        service_name: v.optional(v.string()),
         key_messaging_points: v.optional(v.array(v.string())),
       }))),
       providers: v.optional(v.array(v.object({
-        name: v.string(),
+        name: v.optional(v.string()),
         credentials: v.optional(v.string()),
         bio: v.optional(v.string()),
         services_offered: v.optional(v.array(v.string())),
@@ -116,8 +116,8 @@ const clientDataValidator = v.object({
     })),
     language_guidelines: v.optional(v.object({
       preferred_terminology: v.optional(v.array(v.object({
-        use: v.string(),
-        instead_of: v.string(),
+        use: v.optional(v.string()),
+        instead_of: v.optional(v.string()),
       }))),
       words_to_avoid: v.optional(v.array(v.string())),
       industry_specific_language: v.optional(v.array(v.string())),
@@ -133,14 +133,14 @@ const clientDataValidator = v.object({
       goals_and_motivations: v.optional(v.array(v.string())),
     })),
     secondary_audiences: v.optional(v.array(v.object({
-      name: v.string(),
+      name: v.optional(v.string()),
       demographics: v.optional(demographicsValidator),
       psychographics: v.optional(v.array(v.string())),
       pain_points: v.optional(v.array(v.string())),
       goals_and_motivations: v.optional(v.array(v.string())),
     }))),
     customer_personas: v.optional(v.array(v.object({
-      name: v.string(),
+      name: v.optional(v.string()),
       age: v.optional(v.string()),
       occupation: v.optional(v.string()),
       background: v.optional(v.string()),
@@ -161,8 +161,8 @@ const clientDataValidator = v.object({
   visual_identity: v.object({
     logo: v.optional(v.object({
       logo_lockups: v.optional(v.array(v.object({
-        name: v.string(),
-        type: v.union(v.literal("primary"), v.literal("alternate")),
+        name: v.optional(v.string()),
+        type: v.optional(v.union(v.literal("primary"), v.literal("alternate"))),
         description: v.optional(v.string()),
         asset: optionalAssetValidator,
       }))),
@@ -191,8 +191,8 @@ const clientDataValidator = v.object({
         gray: v.optional(v.array(colorSwatchValidator)),
       })),
       gradients: v.optional(v.array(v.object({
-        name: v.string(),
-        type: v.union(v.literal("linear"), v.literal("radial")),
+        name: v.optional(v.string()),
+        type: v.optional(v.union(v.literal("linear"), v.literal("radial"))),
         colors: v.optional(v.array(v.string())),
         css: v.optional(v.string()),
       }))),
@@ -291,7 +291,7 @@ const clientDataValidator = v.object({
           template: optionalAssetValidator,
         })),
         other: v.optional(v.array(v.object({
-          name: v.string(),
+          name: v.optional(v.string()),
           specs: v.optional(v.string()),
           template: optionalAssetValidator,
         }))),
@@ -374,7 +374,8 @@ export default defineSchema({
     client_id: v.id("clients"),
     filename: v.string(),
     file_id: v.optional(v.string()),
-    file_type: v.union(v.literal("pdf"), v.literal("docx"), v.literal("txt")),
+    file_type: v.union(v.literal("pdf"), v.literal("docx"), v.literal("txt"), v.literal("md"), v.literal("json"), v.literal("html")),
+    source_url: v.optional(v.string()), // URL if imported from web
     extracted_text: v.optional(v.string()),
     target_sections: v.optional(v.array(v.string())),
     extracted_fields: v.optional(v.any()), // Flexible structure for extracted data

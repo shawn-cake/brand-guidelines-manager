@@ -620,12 +620,12 @@ export function PersonalityTab({ clientId, data, fullData, readOnly = false }: P
 
 function Section({ title, expanded, onToggle, children }: { title: string; expanded: boolean; onToggle: () => void; children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-[#E5E7EB] rounded-lg shadow-sm">
-      <button onClick={onToggle} className="w-full px-6 py-4 flex items-center justify-between hover:bg-[#F9FAFB] transition-colors">
+    <div className="bg-white border border-[#E5E7EB] rounded-lg shadow-sm overflow-hidden">
+      <button onClick={onToggle} className="w-full px-4 py-4 flex items-center justify-between hover:bg-[#F9FAFB] transition-colors">
         <h3 className="text-base font-semibold text-[#374151]">{title}</h3>
         <FontAwesomeIcon icon={expanded ? faChevronDown : faChevronRight} className="w-4 h-4 text-[#6B7280]" />
       </button>
-      {expanded && <div className="px-6 pb-6 border-t border-[#E5E7EB] pt-4">{children}</div>}
+      {expanded && <div className="px-4 pb-6 border-t border-[#E5E7EB] pt-4">{children}</div>}
     </div>
   );
 }
