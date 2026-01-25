@@ -1,89 +1,25 @@
-import { useState, useCallback, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import { useState, useRef, useImperativeHandle, forwardRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronDown, faChevronRight, faPlus, faLink, faTrash } from '@fortawesome/free-solid-svg-icons';
-import { useMutation } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
+import { faPlus, faLink, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { TocSection } from '../TableOfContents';
-
-// Controlled input that syncs with external value and saves on blur
-interface ControlledInputProps {
-  value: string;
-  onSave: (value: string) => void;
-  readOnly?: boolean;
-  placeholder?: string;
-  className?: string;
-  type?: string;
-}
-
-function ControlledInput({ value, onSave, readOnly = false, placeholder, className, type = 'text' }: ControlledInputProps) {
-  const [localValue, setLocalValue] = useState(value);
-
-  // Sync local state when external value changes (e.g., switching versions)
-  useEffect(() => {
-    setLocalValue(value);
-  }, [value]);
-
-  const handleBlur = () => {
-    if (!readOnly && localValue !== value) {
-      onSave(localValue);
-    }
-  };
-
-  return (
-    <input
-      type={type}
-      value={localValue}
-      onChange={(e) => setLocalValue(e.target.value)}
-      onBlur={handleBlur}
-      placeholder={placeholder}
-      className={className}
-      readOnly={readOnly}
-    />
-  );
-}
-
-// Controlled textarea
-interface ControlledTextareaProps {
-  value: string;
-  onSave: (value: string) => void;
-  readOnly?: boolean;
-  placeholder?: string;
-  className?: string;
-  rows?: number;
-}
-
-function ControlledTextarea({ value, onSave, readOnly = false, placeholder, className, rows = 3 }: ControlledTextareaProps) {
-  const [localValue, setLocalValue] = useState(value);
-
-  useEffect(() => {
-    setLocalValue(value);
-  }, [value]);
-
-  const handleBlur = () => {
-    if (!readOnly && localValue !== value) {
-      onSave(localValue);
-    }
-  };
-
-  return (
-    <textarea
-      value={localValue}
-      onChange={(e) => setLocalValue(e.target.value)}
-      onBlur={handleBlur}
-      placeholder={placeholder}
-      className={className}
-      rows={rows}
-      readOnly={readOnly}
-    />
-  );
-}
+import { useFieldOperations } from '../../hooks/useFieldOperations';
+import {
+  ControlledInput,
+  ControlledTextarea,
+  Section,
+  FormField,
+  inputClass,
+  inputSmClass,
+} from '../form';
+import { Foundations, ClientData } from '../../types/brandGuidelines';
 
 interface FoundationsTabProps {
   clientId: Id<"clients">;
-  data: any;
-  fullData: any;
+  data: Foundations;
+  fullData: ClientData;
   readOnly?: boolean;
+  onExpandedSectionsChange?: (sections: Set<string>) => void;
 }
 
 export interface FoundationsTabHandle {
@@ -102,9 +38,15 @@ const SECTION_CONFIG = [
 ];
 
 export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabProps>(
-  function FoundationsTab({ clientId, data, fullData, readOnly = false }, ref) {
+  function FoundationsTab({ clientId, data, fullData, readOnly = false, onExpandedSectionsChange }, ref) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['general']));
-  const updateClient = useMutation(api.clients.update);
+
+  // Use shared field operations hook
+  const { saveField, addToArray, removeFromArray, saveArrayItem, saveArrayItemField } = useFieldOperations({
+    clientId,
+    fullData,
+    readOnly,
+  });
 
   // Create refs for each section
   const sectionRefs = useRef<Record<string, React.RefObject<HTMLDivElement | null>>>({});
@@ -122,6 +64,7 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
       newExpanded.add(section);
     }
     setExpandedSections(newExpanded);
+    onExpandedSectionsChange?.(newExpanded);
   };
 
   const expandSection = (sectionId: string) => {
@@ -129,6 +72,7 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
       const newExpanded = new Set(expandedSections);
       newExpanded.add(sectionId);
       setExpandedSections(newExpanded);
+      onExpandedSectionsChange?.(newExpanded);
     }
   };
 
@@ -148,123 +92,7 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
   const services = data?.services_and_providers || {};
   const social = general.social_media_handles || {};
 
-  const saveField = useCallback(async (path: string[], value: any) => {
-    if (readOnly) return; // Don't save when viewing a historical version
-    try {
-      const newData = JSON.parse(JSON.stringify(fullData));
-      let current = newData;
-      for (let i = 0; i < path.length - 1; i++) {
-        if (!current[path[i]]) current[path[i]] = {};
-        current = current[path[i]];
-      }
-      current[path[path.length - 1]] = value;
-      await updateClient({ id: clientId, data: newData });
-    } catch (error) {
-      console.error('Failed to save:', error);
-    }
-  }, [clientId, fullData, updateClient, readOnly]);
-
-  const handleTextChange = (path: string[]) => (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    saveField(path, e.target.value);
-  };
-
-  const handleAddToArray = async (path: string[], newItem: any) => {
-    const newData = JSON.parse(JSON.stringify(fullData));
-    let current = newData;
-    for (let i = 0; i < path.length - 1; i++) {
-      if (!current[path[i]]) current[path[i]] = {};
-      current = current[path[i]];
-    }
-    const arrayKey = path[path.length - 1];
-    if (!current[arrayKey]) current[arrayKey] = [];
-    current[arrayKey].push(newItem);
-    try {
-      await updateClient({ id: clientId, data: newData });
-    } catch (error) {
-      console.error('Failed to add item:', error);
-    }
-  };
-
-  const handleRemoveFromArray = async (path: string[], index: number) => {
-    const newData = JSON.parse(JSON.stringify(fullData));
-    let current = newData;
-    for (let i = 0; i < path.length - 1; i++) {
-      current = current[path[i]];
-    }
-    current[path[path.length - 1]].splice(index, 1);
-    try {
-      await updateClient({ id: clientId, data: newData });
-    } catch (error) {
-      console.error('Failed to remove item:', error);
-    }
-  };
-
-  const handleUpdateArrayItem = (path: string[], index: number, field: string) => 
-    (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      const newData = JSON.parse(JSON.stringify(fullData));
-      let current = newData;
-      for (let i = 0; i < path.length - 1; i++) {
-        if (!current[path[i]]) current[path[i]] = {};
-        current = current[path[i]];
-      }
-      const arrayKey = path[path.length - 1];
-      if (current[arrayKey] && current[arrayKey][index]) {
-        current[arrayKey][index][field] = e.target.value;
-        updateClient({ id: clientId, data: newData }).catch(console.error);
-      }
-    };
-
-  const handleUpdateSimpleArrayItem = (path: string[], index: number) =>
-    (e: React.FocusEvent<HTMLInputElement>) => {
-      const newData = JSON.parse(JSON.stringify(fullData));
-      let current = newData;
-      for (let i = 0; i < path.length - 1; i++) {
-        if (!current[path[i]]) current[path[i]] = {};
-        current = current[path[i]];
-      }
-      current[path[path.length - 1]][index] = e.target.value;
-      updateClient({ id: clientId, data: newData }).catch(console.error);
-    };
-
-  // Save function for simple array items (used by ControlledInput)
-  const saveSimpleArrayItem = useCallback(async (path: string[], index: number, value: string) => {
-    if (readOnly) return;
-    try {
-      const newData = JSON.parse(JSON.stringify(fullData));
-      let current = newData;
-      for (let i = 0; i < path.length - 1; i++) {
-        if (!current[path[i]]) current[path[i]] = {};
-        current = current[path[i]];
-      }
-      current[path[path.length - 1]][index] = value;
-      await updateClient({ id: clientId, data: newData });
-    } catch (error) {
-      console.error('Failed to save array item:', error);
-    }
-  }, [clientId, fullData, updateClient, readOnly]);
-
-  // Save function for object array items (used by ControlledInput for services)
-  const saveArrayItemField = useCallback(async (path: string[], index: number, field: string, value: string) => {
-    if (readOnly) return;
-    try {
-      const newData = JSON.parse(JSON.stringify(fullData));
-      let current = newData;
-      for (let i = 0; i < path.length - 1; i++) {
-        if (!current[path[i]]) current[path[i]] = {};
-        current = current[path[i]];
-      }
-      const arrayKey = path[path.length - 1];
-      if (current[arrayKey] && current[arrayKey][index]) {
-        current[arrayKey][index][field] = value;
-        await updateClient({ id: clientId, data: newData });
-      }
-    } catch (error) {
-      console.error('Failed to save array item field:', error);
-    }
-  }, [clientId, fullData, updateClient, readOnly]);
-
-  const inputClass = "w-full px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE]";
-  const inputWithIconClass = "w-full px-3 py-2.5 pr-10 bg-white border border-[#D1D5DB] rounded-md text-sm text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8] focus:outline-none focus:ring-3 focus:ring-[#D1E0EE]";
+  const inputWithIconClass = `${inputClass} pr-10`;
 
   return (
     <div className="space-y-4">
@@ -317,12 +145,12 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
               <div key={`phone-${index}-${phone}`} className="flex gap-2 mb-2">
                 <ControlledInput
                   value={phone}
-                  onSave={(value) => saveSimpleArrayItem(['foundations', 'general_business_information', 'phone_numbers'], index, value)}
+                  onSave={(value) => saveArrayItem(['foundations', 'general_business_information', 'phone_numbers'], index, value)}
                   readOnly={readOnly}
-                  className="flex-1 px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm"
+                  className={`flex-1 ${inputSmClass}`}
                 />
                 {!readOnly && (
-                  <button onClick={() => handleRemoveFromArray(['foundations', 'general_business_information', 'phone_numbers'], index)} className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2]">
+                  <button onClick={() => removeFromArray(['foundations', 'general_business_information', 'phone_numbers'], index)} className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2]">
                     <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -330,7 +158,7 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
             ))}
             {(general.phone_numbers || []).length === 0 && <p className="text-sm text-[#9CA3AF] mb-2">No phone numbers added yet.</p>}
             {!readOnly && (
-              <button onClick={() => handleAddToArray(['foundations', 'general_business_information', 'phone_numbers'], '')} className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md flex items-center gap-2">
+              <button onClick={() => addToArray(['foundations', 'general_business_information', 'phone_numbers'], '')} className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md flex items-center gap-2">
                 <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />Add Phone Number
               </button>
             )}
@@ -342,7 +170,7 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
               readOnly={readOnly}
               placeholder="e.g., Mon-Fri: 9AM-5PM"
               rows={3}
-              className={inputClass + " resize-y"}
+              className={`${inputClass} resize-y`}
             />
           </FormField>
         </div>
@@ -357,7 +185,7 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
               readOnly={readOnly}
               placeholder="Tell the story of how your brand came to be..."
               rows={4}
-              className={inputClass + " resize-y"}
+              className={`${inputClass} resize-y`}
             />
           </FormField>
           <FormField label="Mission Statement">
@@ -367,7 +195,7 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
               readOnly={readOnly}
               placeholder="What is your organization's purpose?"
               rows={3}
-              className={inputClass + " resize-y"}
+              className={`${inputClass} resize-y`}
             />
           </FormField>
           <FormField label="Vision Statement">
@@ -377,7 +205,7 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
               readOnly={readOnly}
               placeholder="Where do you see your organization in the future?"
               rows={3}
-              className={inputClass + " resize-y"}
+              className={`${inputClass} resize-y`}
             />
           </FormField>
           <FormField label="Unique Value Proposition">
@@ -387,21 +215,20 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
               readOnly={readOnly}
               placeholder="What makes your brand uniquely valuable?"
               rows={3}
-              className={inputClass + " resize-y"}
+              className={`${inputClass} resize-y`}
             />
           </FormField>
-          <FormField label="Core Values">
-            <p className="text-sm text-[#6B7280] mb-3">List the fundamental beliefs that guide your organization</p>
+          <FormField label="Core Values" description="List the fundamental beliefs that guide your organization">
             {(brand.core_values || []).map((value: string, index: number) => (
               <div key={`core-value-${index}-${value}`} className="flex gap-2 mb-2">
                 <ControlledInput
                   value={value}
-                  onSave={(newValue) => saveSimpleArrayItem(['foundations', 'brand_identity', 'core_values'], index, newValue)}
+                  onSave={(newValue) => saveArrayItem(['foundations', 'brand_identity', 'core_values'], index, newValue)}
                   readOnly={readOnly}
-                  className="flex-1 px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm"
+                  className={`flex-1 ${inputSmClass}`}
                 />
                 {!readOnly && (
-                  <button onClick={() => handleRemoveFromArray(['foundations', 'brand_identity', 'core_values'], index)} className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2]">
+                  <button onClick={() => removeFromArray(['foundations', 'brand_identity', 'core_values'], index)} className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2]">
                     <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -409,23 +236,22 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
             ))}
             {(brand.core_values || []).length === 0 && <p className="text-sm text-[#9CA3AF] mb-2">No core values added yet.</p>}
             {!readOnly && (
-              <button onClick={() => handleAddToArray(['foundations', 'brand_identity', 'core_values'], '')} className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md flex items-center gap-2">
+              <button onClick={() => addToArray(['foundations', 'brand_identity', 'core_values'], '')} className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md flex items-center gap-2">
                 <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />Add Core Value
               </button>
             )}
           </FormField>
-          <FormField label="Differentiators">
-            <p className="text-sm text-[#6B7280] mb-3">What sets you apart from competitors?</p>
+          <FormField label="Differentiators" description="What sets you apart from competitors?">
             {(brand.differentiators || []).map((diff: string, index: number) => (
               <div key={`differentiator-${index}-${diff}`} className="flex gap-2 mb-2">
                 <ControlledInput
                   value={diff}
-                  onSave={(value) => saveSimpleArrayItem(['foundations', 'brand_identity', 'differentiators'], index, value)}
+                  onSave={(value) => saveArrayItem(['foundations', 'brand_identity', 'differentiators'], index, value)}
                   readOnly={readOnly}
-                  className="flex-1 px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm"
+                  className={`flex-1 ${inputSmClass}`}
                 />
                 {!readOnly && (
-                  <button onClick={() => handleRemoveFromArray(['foundations', 'brand_identity', 'differentiators'], index)} className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2]">
+                  <button onClick={() => removeFromArray(['foundations', 'brand_identity', 'differentiators'], index)} className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2]">
                     <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -433,7 +259,7 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
             ))}
             {(brand.differentiators || []).length === 0 && <p className="text-sm text-[#9CA3AF] mb-2">No differentiators added yet.</p>}
             {!readOnly && (
-              <button onClick={() => handleAddToArray(['foundations', 'brand_identity', 'differentiators'], '')} className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md flex items-center gap-2">
+              <button onClick={() => addToArray(['foundations', 'brand_identity', 'differentiators'], '')} className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md flex items-center gap-2">
                 <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />Add Differentiator
               </button>
             )}
@@ -444,24 +270,24 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
       <Section title="Services" expanded={expandedSections.has('services')} onToggle={() => toggleSection('services')} sectionRef={sectionRefs.current['services']}>
         <div className="space-y-4">
           <FormField label="Services Offered">
-            {(services.services || []).map((service: any, index: number) => (
+            {(services.services || []).map((service: { name?: string; page_url?: string }, index: number) => (
               <div key={`service-${index}-${service.name}`} className="flex gap-2 mb-2">
                 <ControlledInput
                   value={service.name || ''}
                   onSave={(value) => saveArrayItemField(['foundations', 'services_and_providers', 'services'], index, 'name', value)}
                   readOnly={readOnly}
                   placeholder="Service name"
-                  className="flex-1 px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm"
+                  className={`flex-1 ${inputSmClass}`}
                 />
                 <ControlledInput
                   value={service.page_url || ''}
                   onSave={(value) => saveArrayItemField(['foundations', 'services_and_providers', 'services'], index, 'page_url', value)}
                   readOnly={readOnly}
                   placeholder="URL"
-                  className="flex-1 px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm"
+                  className={`flex-1 ${inputSmClass}`}
                 />
                 {!readOnly && (
-                  <button onClick={() => handleRemoveFromArray(['foundations', 'services_and_providers', 'services'], index)} className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2]">
+                  <button onClick={() => removeFromArray(['foundations', 'services_and_providers', 'services'], index)} className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#DC2626] rounded-md hover:bg-[#FEE2E2]">
                     <FontAwesomeIcon icon={faTrash} className="w-3.5 h-3.5" />
                   </button>
                 )}
@@ -469,7 +295,7 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
             ))}
             {(services.services || []).length === 0 && <p className="text-sm text-[#9CA3AF] mb-2">No services added yet.</p>}
             {!readOnly && (
-              <button onClick={() => handleAddToArray(['foundations', 'services_and_providers', 'services'], { name: '', page_url: '' })} className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md flex items-center gap-2">
+              <button onClick={() => addToArray(['foundations', 'services_and_providers', 'services'], { name: '', page_url: '' })} className="mt-2 px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md flex items-center gap-2">
                 <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />Add Service
               </button>
             )}
@@ -480,12 +306,12 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
       <Section title="Providers / Staff" expanded={expandedSections.has('providers')} onToggle={() => toggleSection('providers')} sectionRef={sectionRefs.current['providers']}>
         <div className="space-y-4">
           <p className="text-sm text-[#6B7280]">Add information about key staff members or providers</p>
-          {(services.providers || []).map((provider: any, index: number) => (
+          {(services.providers || []).map((provider: { name?: string; credentials?: string; bio?: string }, index: number) => (
             <div key={`provider-${index}-${provider.name}`} className="p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-md">
               <div className="flex items-center justify-between mb-4">
                 <h4 className="text-sm font-medium text-[#1F2937]">{provider.name || `Provider ${index + 1}`}</h4>
                 {!readOnly && (
-                  <button onClick={() => handleRemoveFromArray(['foundations', 'services_and_providers', 'providers'], index)} className="px-2 py-1 text-xs text-[#DC2626] hover:bg-[#FEE2E2] rounded">
+                  <button onClick={() => removeFromArray(['foundations', 'services_and_providers', 'providers'], index)} className="px-2 py-1 text-xs text-[#DC2626] hover:bg-[#FEE2E2] rounded">
                     <FontAwesomeIcon icon={faTrash} className="w-3 h-3" />
                   </button>
                 )}
@@ -511,14 +337,14 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
                   readOnly={readOnly}
                   placeholder="Bio"
                   rows={3}
-                  className={inputClass + " resize-y"}
+                  className={`${inputClass} resize-y`}
                 />
               </div>
             </div>
           ))}
           {(services.providers || []).length === 0 && <p className="text-sm text-[#9CA3AF] mb-2">No providers added yet.</p>}
           {!readOnly && (
-            <button onClick={() => handleAddToArray(['foundations', 'services_and_providers', 'providers'], { name: '', credentials: '', bio: '' })} className="px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md flex items-center gap-2">
+            <button onClick={() => addToArray(['foundations', 'services_and_providers', 'providers'], { name: '', credentials: '', bio: '' })} className="px-3 py-2 bg-transparent text-[#4074A8] text-sm font-medium hover:bg-[#EBF1F7] rounded-md flex items-center gap-2">
               <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />Add Provider
             </button>
           )}
@@ -527,7 +353,7 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
 
       <Section title="Social Media" expanded={expandedSections.has('social')} onToggle={() => toggleSection('social')} sectionRef={sectionRefs.current['social']}>
         <div className="space-y-4">
-          {['facebook', 'instagram', 'twitter', 'linkedin', 'tiktok', 'youtube'].map((platform) => (
+          {(['facebook', 'instagram', 'twitter', 'linkedin', 'tiktok', 'youtube'] as const).map((platform) => (
             <FormField key={platform} label={platform.charAt(0).toUpperCase() + platform.slice(1)}>
               <div className="relative">
                 <ControlledInput
@@ -546,32 +372,3 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
     </div>
   );
 });
-
-interface SectionProps {
-  title: string;
-  expanded: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-  sectionRef?: React.RefObject<HTMLDivElement | null>;
-}
-
-function Section({ title, expanded, onToggle, children, sectionRef }: SectionProps) {
-  return (
-    <div ref={sectionRef} className="bg-white border border-[#E5E7EB] rounded-lg shadow-sm overflow-hidden scroll-mt-8">
-      <button onClick={onToggle} className="w-full px-4 py-4 flex items-center justify-between hover:bg-[#F9FAFB] transition-colors">
-        <h3 className="text-lg font-semibold text-[#374151]">{title}</h3>
-        <FontAwesomeIcon icon={expanded ? faChevronDown : faChevronRight} className="w-4 h-4 text-[#6B7280]" />
-      </button>
-      {expanded && <div className="px-4 pb-6 border-t border-[#E5E7EB] pt-4">{children}</div>}
-    </div>
-  );
-}
-
-function FormField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-[#374151] mb-2">{label}</label>
-      {children}
-    </div>
-  );
-}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faList, faXmark } from '@fortawesome/free-solid-svg-icons';
 
@@ -21,57 +21,7 @@ export function TableOfContents({
   onSectionClick,
   expandedSections,
 }: TableOfContentsProps) {
-  const [activeSection, setActiveSection] = useState<string | null>(null);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-
-  // Scroll spy: detect which section is currently in view
-  const handleScroll = useCallback(() => {
-    if (!scrollContainerRef.current) return;
-
-    const container = scrollContainerRef.current;
-    const containerRect = container.getBoundingClientRect();
-    const scrollTop = container.scrollTop;
-    const offset = 120; // Offset from top to consider "active"
-
-    let currentSection: string | null = null;
-
-    for (const section of sections) {
-      if (section.ref.current) {
-        const sectionTop = section.ref.current.offsetTop - offset;
-        const sectionBottom = sectionTop + section.ref.current.offsetHeight;
-
-        if (scrollTop >= sectionTop && scrollTop < sectionBottom) {
-          currentSection = section.id;
-          break;
-        }
-      }
-    }
-
-    // If no section found, default to first visible or first section
-    if (!currentSection && sections.length > 0) {
-      for (const section of sections) {
-        if (section.ref.current) {
-          const rect = section.ref.current.getBoundingClientRect();
-          if (rect.top < containerRect.bottom && rect.bottom > containerRect.top) {
-            currentSection = section.id;
-            break;
-          }
-        }
-      }
-    }
-
-    setActiveSection(currentSection);
-  }, [sections, scrollContainerRef]);
-
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    container.addEventListener('scroll', handleScroll);
-    handleScroll(); // Initial check
-
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [handleScroll, scrollContainerRef]);
 
   const handleClick = (sectionId: string) => {
     onSectionClick(sectionId);
@@ -97,20 +47,13 @@ export function TableOfContents({
         On this page
       </h4>
       {sections.map((section) => {
-        const isActive = activeSection === section.id;
         const isExpanded = expandedSections.has(section.id);
 
         return (
           <button
             key={section.id}
             onClick={() => handleClick(section.id)}
-            className={`
-              w-full text-left px-3 py-1.5 text-sm rounded-md transition-colors
-              ${isActive
-                ? 'text-[#4074A8] bg-[#EBF1F7] font-medium'
-                : 'text-[#6B7280] hover:text-[#374151] hover:bg-[#F3F4F6]'
-              }
-            `}
+            className="w-full text-left px-3 py-1.5 text-sm rounded-md transition-colors text-[#6B7280] hover:text-[#374151] hover:bg-[#F3F4F6]"
           >
             <span className="flex items-center gap-2">
               <span

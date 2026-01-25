@@ -35,6 +35,8 @@ A narrative chronicle of the project journey - the decisions, discoveries, and p
 - [x] Clickable version badge to open version history
 - [x] Table of Contents repositioned inside content area
 - [x] Multiple URL import support
+- [x] PDF export functionality
+- [x] AI Prompt export for use with any AI tool
 - [ ] Test Version History across all tabs
 - [ ] Add data validation and error handling
 
@@ -44,6 +46,117 @@ A narrative chronicle of the project journey - the decisions, discoveries, and p
 ---
 
 ## Daily Log - Newest First
+
+### 2026-01-25: New Export Features - PDF and AI Prompts
+
+**The Request:** User wanted two new export options: PDF export and AI prompts export. The AI prompts feature was suggested from a tool audit to generate optimized system prompts for different AI tools.
+
+**The Implementation:**
+1. **PDF Export** - Added jsPDF library for client-side PDF generation. The PDF includes all brand guidelines sections with proper formatting: headings, subheadings, bullet lists, and automatic page breaks.
+
+2. **AI Prompts Export** - Initially implemented three separate prompts optimized for ChatGPT (markdown), Claude (XML), and Jasper (action-oriented). User feedback led to simplification: now a single general-purpose prompt that presents brand guidelines in a clean format usable with any AI tool.
+
+**Key Decision:** Simplified from 3 AI-specific prompts to 1 universal prompt. The user's insight was that people will provide their own context - they just need the brand information in a clean, copy-paste format.
+
+**Files Changed:** `src/app/components/ExportDropdown.tsx`
+
+---
+
+### 2026-01-25: Table of Contents UX Fix (with Claude Cowork)
+
+**The Situation:** During a UX audit with Claude Cowork, we identified that the Table of Contents (ToC) highlight indicator wasn't working correctly. The blue dot that indicates expanded sections would not turn gray when collapsing a section directly by clicking its header—it only updated when clicking a different section in the ToC.
+
+**The Root Cause:** The ToC component had two separate issues:
+1. **Broken scroll spy:** The scroll-based "active section" highlighting didn't work properly with collapsible sections because collapsed sections have minimal height
+2. **State sync gap:** The parent component (`ClientDashboard`) only read `expandedSections` from tab refs on tab change or ToC click, not when users toggled sections directly
+
+**The Decision:** Remove the unreliable scroll-based highlighting entirely and fix the state synchronization:
+- Removed ~55 lines of scroll spy code from `TableOfContents.tsx`
+- Added `onExpandedSectionsChange` callback prop to all four tab components
+- Connected the callback to update parent state whenever sections are toggled
+
+**The Result:** The ToC now shows a simple, reliable indicator:
+- Blue dot = section is expanded
+- Gray dot = section is collapsed
+- Updates immediately regardless of how the section was toggled
+
+### 2026-01-25: Code Audit and Refactoring
+
+**The Situation:** After months of rapid feature development, the codebase had accumulated significant technical debt. Each of the four tab components (FoundationsTab, PersonalityTab, AudiencesTab, VisualIdentityTab) contained duplicate implementations of controlled input components, field operations logic, and helper functions.
+
+**The Challenge:**
+1. **Code Duplication:** Each tab duplicated ~150 lines of component definitions (ControlledInput, ControlledTextarea, Section, FormField)
+2. **Type Safety:** Components used `any` types throughout, losing TypeScript benefits
+3. **Maintenance Burden:** Bug fixes or improvements had to be made in 4 places
+4. **UX Issue:** ExportDropdown used browser `alert()` instead of toast notifications
+
+**The Decision:** Conducted a comprehensive code audit and implemented a refactoring strategy:
+- Extract shared components to a centralized `form/` directory
+- Create a custom `useFieldOperations` hook for all data mutations
+- Define comprehensive TypeScript interfaces matching the Convex schema
+- Replace alerts with toast notifications for consistency
+
+**Why This Matters:** The refactoring reduces total codebase size by ~400+ lines while improving maintainability. Future changes to form behavior, styling, or validation only need to be made in one place. Type safety catches errors at compile time rather than runtime.
+
+**The Implementation:**
+1. **Created Shared Form Components** (`src/app/components/form/`):
+   - `ControlledInput.tsx` - Text input with blur-to-save pattern
+   - `ControlledTextarea.tsx` - Multiline text with blur-to-save
+   - `ControlledSelect.tsx` - Dropdown with immediate save on change
+   - `Section.tsx` - Collapsible section with ARIA `aria-expanded` attribute
+   - `FormField.tsx` - Label wrapper with optional description
+   - `index.ts` - Barrel export with shared `inputClass` and `inputSmClass` constants
+
+2. **Created Custom Hook** (`src/app/hooks/useFieldOperations.ts`):
+   - `saveField(path, value)` - Save any field by path
+   - `addToArray(path, item)` - Add item to array field
+   - `removeFromArray(path, index)` - Remove item from array
+   - `saveArrayItem(path, index, value)` - Update simple array item
+   - `saveArrayItemField(path, index, field, value)` - Update object array item field
+   - Includes error handling with toast notifications
+
+3. **Created TypeScript Interfaces** (`src/app/types/brandGuidelines.ts`):
+   - Complete type definitions for all nested data structures
+   - Matches Convex schema exactly (~400 lines)
+   - Includes: Asset, Foundations, PersonalityAndTone, TargetAudiences, VisualIdentity, ClientData, Client, Version
+
+4. **Updated All Tab Components**:
+   - Removed duplicate component definitions
+   - Imported shared components and hook
+   - Added proper TypeScript typing for data props
+   - Reduced each file by ~150-200 lines
+
+5. **Fixed UX Issue**:
+   - Updated `ExportDropdown.tsx` to use `toast.success()` instead of `alert()`
+
+**The Result:**
+- FoundationsTab: ~580 → ~370 lines (36% reduction)
+- PersonalityTab: ~540 → ~340 lines (37% reduction)
+- AudiencesTab: ~670 → ~495 lines (26% reduction)
+- VisualIdentityTab: ~795 → ~610 lines (23% reduction)
+- Total: ~400+ lines of duplicate code eliminated
+- Full TypeScript coverage for brand guidelines data
+- Improved accessibility with ARIA attributes
+- Consistent error handling and user feedback
+
+**Files Created:**
+- `src/app/components/form/ControlledInput.tsx`
+- `src/app/components/form/ControlledTextarea.tsx`
+- `src/app/components/form/ControlledSelect.tsx`
+- `src/app/components/form/Section.tsx`
+- `src/app/components/form/FormField.tsx`
+- `src/app/components/form/index.ts`
+- `src/app/hooks/useFieldOperations.ts`
+- `src/app/types/brandGuidelines.ts`
+
+**Files Modified:**
+- `src/app/components/tabs/FoundationsTab.tsx`
+- `src/app/components/tabs/PersonalityTab.tsx`
+- `src/app/components/tabs/AudiencesTab.tsx`
+- `src/app/components/tabs/VisualIdentityTab.tsx`
+- `src/app/components/ExportDropdown.tsx`
+
+---
 
 ### 2026-01-25: Quality of Life Improvements
 

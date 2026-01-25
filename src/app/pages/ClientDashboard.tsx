@@ -390,6 +390,7 @@ export function ClientDashboard() {
                 data={displayData.foundations}
                 fullData={displayData}
                 readOnly={isViewingVersion}
+                onExpandedSectionsChange={setExpandedSections}
               />
             )}
             {activeTab === 'personality' && (
@@ -400,6 +401,7 @@ export function ClientDashboard() {
                 data={displayData.personality_and_tone}
                 fullData={displayData}
                 readOnly={isViewingVersion}
+                onExpandedSectionsChange={setExpandedSections}
               />
             )}
             {activeTab === 'audiences' && (
@@ -410,6 +412,7 @@ export function ClientDashboard() {
                 data={displayData.target_audiences}
                 fullData={displayData}
                 readOnly={isViewingVersion}
+                onExpandedSectionsChange={setExpandedSections}
               />
             )}
             {activeTab === 'visual' && (
@@ -420,6 +423,7 @@ export function ClientDashboard() {
                 data={displayData.visual_identity}
                 fullData={displayData}
                 readOnly={isViewingVersion}
+                onExpandedSectionsChange={setExpandedSections}
               />
             )}
           </div>

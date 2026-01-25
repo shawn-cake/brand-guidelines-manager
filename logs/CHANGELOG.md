@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- PDF export functionality - Generate and download brand guidelines as formatted PDF documents using jsPDF. Files: `src/app/components/ExportDropdown.tsx`
+- AI Prompt export - Copy brand guidelines as a general-purpose prompt for use with any AI tool. Files: `src/app/components/ExportDropdown.tsx`
+- Shared form components library - Reusable ControlledInput, ControlledTextarea, ControlledSelect, Section, and FormField components. Files: `src/app/components/form/ControlledInput.tsx`, `src/app/components/form/ControlledTextarea.tsx`, `src/app/components/form/ControlledSelect.tsx`, `src/app/components/form/Section.tsx`, `src/app/components/form/FormField.tsx`, `src/app/components/form/index.ts`
+- useFieldOperations custom hook - Centralized field mutation logic with saveField, addToArray, removeFromArray, saveArrayItem, saveArrayItemField methods. Files: `src/app/hooks/useFieldOperations.ts`
+- TypeScript interfaces for brand guidelines - Complete type definitions matching Convex schema (~400 lines). Files: `src/app/types/brandGuidelines.ts`
 - Share URL button functionality - Copies current page URL to clipboard with toast confirmation. Files: `src/app/pages/ClientDashboard.tsx`
 - Tooltips for icon-only buttons - Share URL and Version History buttons now show tooltips on hover. Files: `src/app/pages/ClientDashboard.tsx`
 - Toast notification system - Added Sonner Toaster component to app root for global toast support. Files: `src/app/App.tsx`
@@ -40,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Version History across all tabs - View/Restore/Delete functionality with controlled components. Files: `src/app/components/tabs/*.tsx`, `src/app/pages/ClientDashboard.tsx`
 
 ### Changed
+- Tab components refactored - FoundationsTab, PersonalityTab, AudiencesTab, VisualIdentityTab now use shared form components and useFieldOperations hook, reducing ~400+ lines of duplicate code. Files: `src/app/components/tabs/FoundationsTab.tsx`, `src/app/components/tabs/PersonalityTab.tsx`, `src/app/components/tabs/AudiencesTab.tsx`, `src/app/components/tabs/VisualIdentityTab.tsx`
+- ExportDropdown notifications - Replaced browser alert() with toast notifications for clipboard copy feedback. Files: `src/app/components/ExportDropdown.tsx`
+- Section component accessibility - Added aria-expanded attribute to collapsible sections. Files: `src/app/components/form/Section.tsx`
 - Share URL button styling - Changed from text+icon to icon-only button matching Version History button style. Files: `src/app/pages/ClientDashboard.tsx`
 - Table of Contents positioning - Moved from fixed right sidebar to inside content area with 3/4 - 1/4 split layout. Files: `src/app/pages/ClientDashboard.tsx`, `src/app/components/TableOfContents.tsx`
 - Client name input styling - Fixed height to prevent size change when editing (32px font, 44px height). Files: `src/app/pages/ClientDashboard.tsx`
@@ -53,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Schema validation errors - Made all nested fields optional to allow Claude to extract partial data. Files: `convex/schema.ts`
 - JSX parsing error - Replaced escaped quotes with curly brace syntax in placeholder attributes. Files: `src/app/components/tabs/VisualIdentityTab.tsx`
 - Version History View functionality - Converted all inputs from uncontrolled (`defaultValue`) to controlled components (`value` + `onChange`). Files: `src/app/components/tabs/FoundationsTab.tsx`
+- Table of Contents expanded indicator sync - Removed broken scroll-based highlighting; added `onExpandedSectionsChange` callback to sync expanded section state from tabs to ToC. Blue dot now correctly updates when collapsing sections directly. Files: `src/app/components/TableOfContents.tsx`, `src/app/components/tabs/FoundationsTab.tsx`, `src/app/components/tabs/PersonalityTab.tsx`, `src/app/components/tabs/AudiencesTab.tsx`, `src/app/components/tabs/VisualIdentityTab.tsx`, `src/app/pages/ClientDashboard.tsx`
 
 ---
 
