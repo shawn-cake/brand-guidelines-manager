@@ -1,6 +1,6 @@
 # Brand Guidelines Manager
 
-An internal tool for **Cake** to create, manage, and maintain brand guidelines for clients in a collaborative environment.
+An internal tool for **Cake Websites** to create, manage, and maintain brand guidelines for clients in a collaborative environment.
 
 ## Overview
 

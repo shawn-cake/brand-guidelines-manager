@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronDown, faChevronRight, faPlus, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
+import { TocSection } from '../TableOfContents';
 
 // Controlled input that syncs with external value and saves on blur
 interface ControlledInputProps {
@@ -120,11 +121,35 @@ interface PersonalityTabProps {
   readOnly?: boolean;
 }
 
-export function PersonalityTab({ clientId, data, fullData, readOnly = false }: PersonalityTabProps) {
+export interface PersonalityTabHandle {
+  getSections: () => TocSection[];
+  expandedSections: Set<string>;
+  expandSection: (sectionId: string) => void;
+}
+
+// Section configuration for ToC
+const SECTION_CONFIG = [
+  { id: 'traits', title: 'Brand Personality Traits' },
+  { id: 'voice', title: 'Voice & Tone' },
+  { id: 'toneVariations', title: 'Tone Variations by Context' },
+  { id: 'language', title: 'Language Guidelines' },
+  { id: 'inclusive', title: 'Inclusive Language Standards' },
+];
+
+export const PersonalityTab = forwardRef<PersonalityTabHandle, PersonalityTabProps>(
+  function PersonalityTab({ clientId, data, fullData, readOnly = false }, ref) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['traits', 'voice'])
   );
   const updateClient = useMutation(api.clients.update);
+
+  // Create refs for each section
+  const sectionRefs = useRef<Record<string, React.RefObject<HTMLDivElement | null>>>({});
+  SECTION_CONFIG.forEach(({ id }) => {
+    if (!sectionRefs.current[id]) {
+      sectionRefs.current[id] = { current: null };
+    }
+  });
 
   const toggleSection = (section: string) => {
     const newExpanded = new Set(expandedSections);
@@ -135,6 +160,25 @@ export function PersonalityTab({ clientId, data, fullData, readOnly = false }: P
     }
     setExpandedSections(newExpanded);
   };
+
+  const expandSection = (sectionId: string) => {
+    if (!expandedSections.has(sectionId)) {
+      const newExpanded = new Set(expandedSections);
+      newExpanded.add(sectionId);
+      setExpandedSections(newExpanded);
+    }
+  };
+
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    getSections: () => SECTION_CONFIG.map(({ id, title }) => ({
+      id,
+      title,
+      ref: sectionRefs.current[id],
+    })),
+    expandedSections,
+    expandSection,
+  }), [expandedSections]);
 
   // Data extraction with defaults
   const traits = data?.brand_personality_traits || [];
@@ -256,6 +300,7 @@ export function PersonalityTab({ clientId, data, fullData, readOnly = false }: P
         title="Brand Personality Traits"
         expanded={expandedSections.has('traits')}
         onToggle={() => toggleSection('traits')}
+        sectionRef={sectionRefs.current['traits']}
       >
         <div className="space-y-4">
           <FormField label="Personality Traits">
@@ -328,6 +373,7 @@ export function PersonalityTab({ clientId, data, fullData, readOnly = false }: P
         title="Voice & Tone"
         expanded={expandedSections.has('voice')}
         onToggle={() => toggleSection('voice')}
+        sectionRef={sectionRefs.current['voice']}
       >
         <div className="space-y-4">
           <FormField label="Voice Characteristics">
@@ -371,6 +417,7 @@ export function PersonalityTab({ clientId, data, fullData, readOnly = false }: P
         title="Tone Variations by Context"
         expanded={expandedSections.has('toneVariations')}
         onToggle={() => toggleSection('toneVariations')}
+        sectionRef={sectionRefs.current['toneVariations']}
       >
         <div className="space-y-4">
           <p className="text-sm text-[#6B7280]">
@@ -456,6 +503,7 @@ export function PersonalityTab({ clientId, data, fullData, readOnly = false }: P
         title="Language Guidelines"
         expanded={expandedSections.has('language')}
         onToggle={() => toggleSection('language')}
+        sectionRef={sectionRefs.current['language']}
       >
         <div className="space-y-4">
           <FormField label="Preferred Terminology">
@@ -577,6 +625,7 @@ export function PersonalityTab({ clientId, data, fullData, readOnly = false }: P
         title="Inclusive Language Standards"
         expanded={expandedSections.has('inclusive')}
         onToggle={() => toggleSection('inclusive')}
+        sectionRef={sectionRefs.current['inclusive']}
       >
         <div className="space-y-4">
           <FormField label="Inclusive Language Guidelines">
@@ -616,13 +665,21 @@ export function PersonalityTab({ clientId, data, fullData, readOnly = false }: P
       </Section>
     </div>
   );
+});
+
+interface SectionProps {
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  sectionRef?: React.RefObject<HTMLDivElement | null>;
 }
 
-function Section({ title, expanded, onToggle, children }: { title: string; expanded: boolean; onToggle: () => void; children: React.ReactNode }) {
+function Section({ title, expanded, onToggle, children, sectionRef }: SectionProps) {
   return (
-    <div className="bg-white border border-[#E5E7EB] rounded-lg shadow-sm overflow-hidden">
+    <div ref={sectionRef} className="bg-white border border-[#E5E7EB] rounded-lg shadow-sm overflow-hidden scroll-mt-8">
       <button onClick={onToggle} className="w-full px-4 py-4 flex items-center justify-between hover:bg-[#F9FAFB] transition-colors">
-        <h3 className="text-base font-semibold text-[#374151]">{title}</h3>
+        <h3 className="text-lg font-semibold text-[#374151]">{title}</h3>
         <FontAwesomeIcon icon={expanded ? faChevronDown : faChevronRight} className="w-4 h-4 text-[#6B7280]" />
       </button>
       {expanded && <div className="px-4 pb-6 border-t border-[#E5E7EB] pt-4">{children}</div>}

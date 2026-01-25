@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Share URL button functionality - Copies current page URL to clipboard with toast confirmation. Files: `src/app/pages/ClientDashboard.tsx`
+- Tooltips for icon-only buttons - Share URL and Version History buttons now show tooltips on hover. Files: `src/app/pages/ClientDashboard.tsx`
+- Toast notification system - Added Sonner Toaster component to app root for global toast support. Files: `src/app/App.tsx`
 - Auto-sync version from DEVLOG - Build script reads version from logs/DEVLOG.md and generates src/version.ts. Files: `scripts/sync-version.js`, `src/version.ts`, `package.json`
 - Sidebar metadata display - Shows "Cake Websites" company name and app version below title. Files: `src/app/components/Sidebar.tsx`
 - Version number in export filenames - Exported files now include version (e.g., `client-brand-guidelines-v1.0.md`). Files: `src/app/components/ExportDropdown.tsx`
@@ -35,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Version History across all tabs - View/Restore/Delete functionality with controlled components. Files: `src/app/components/tabs/*.tsx`, `src/app/pages/ClientDashboard.tsx`
 
 ### Changed
+- Share URL button styling - Changed from text+icon to icon-only button matching Version History button style. Files: `src/app/pages/ClientDashboard.tsx`
 - Client name input styling - Fixed height to prevent size change when editing (32px font, 44px height). Files: `src/app/pages/ClientDashboard.tsx`
 - Schema validators - Made all nested object fields optional to support partial data extraction from documents. Files: `convex/schema.ts`
 - Content area scrollbar - Changed from `overflow-y-auto` to `overflow-y-scroll` to prevent layout shift. Files: `src/app/pages/ClientDashboard.tsx`

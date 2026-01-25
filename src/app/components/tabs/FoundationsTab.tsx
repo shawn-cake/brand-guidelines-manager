@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronDown, faChevronRight, faPlus, faLink, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
+import { TocSection } from '../TableOfContents';
 
 // Controlled input that syncs with external value and saves on blur
 interface ControlledInputProps {
@@ -85,9 +86,33 @@ interface FoundationsTabProps {
   readOnly?: boolean;
 }
 
-export function FoundationsTab({ clientId, data, fullData, readOnly = false }: FoundationsTabProps) {
+export interface FoundationsTabHandle {
+  getSections: () => TocSection[];
+  expandedSections: Set<string>;
+  expandSection: (sectionId: string) => void;
+}
+
+// Section configuration for ToC
+const SECTION_CONFIG = [
+  { id: 'general', title: 'General Business Information' },
+  { id: 'brand', title: 'Brand Identity' },
+  { id: 'services', title: 'Services' },
+  { id: 'providers', title: 'Providers / Staff' },
+  { id: 'social', title: 'Social Media' },
+];
+
+export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabProps>(
+  function FoundationsTab({ clientId, data, fullData, readOnly = false }, ref) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['general']));
   const updateClient = useMutation(api.clients.update);
+
+  // Create refs for each section
+  const sectionRefs = useRef<Record<string, React.RefObject<HTMLDivElement | null>>>({});
+  SECTION_CONFIG.forEach(({ id }) => {
+    if (!sectionRefs.current[id]) {
+      sectionRefs.current[id] = { current: null };
+    }
+  });
 
   const toggleSection = (section: string) => {
     const newExpanded = new Set(expandedSections);
@@ -98,6 +123,25 @@ export function FoundationsTab({ clientId, data, fullData, readOnly = false }: F
     }
     setExpandedSections(newExpanded);
   };
+
+  const expandSection = (sectionId: string) => {
+    if (!expandedSections.has(sectionId)) {
+      const newExpanded = new Set(expandedSections);
+      newExpanded.add(sectionId);
+      setExpandedSections(newExpanded);
+    }
+  };
+
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    getSections: () => SECTION_CONFIG.map(({ id, title }) => ({
+      id,
+      title,
+      ref: sectionRefs.current[id],
+    })),
+    expandedSections,
+    expandSection,
+  }), [expandedSections]);
 
   const general = data?.general_business_information || {};
   const brand = data?.brand_identity || {};
@@ -224,7 +268,7 @@ export function FoundationsTab({ clientId, data, fullData, readOnly = false }: F
 
   return (
     <div className="space-y-4">
-      <Section title="General Business Information" expanded={expandedSections.has('general')} onToggle={() => toggleSection('general')}>
+      <Section title="General Business Information" expanded={expandedSections.has('general')} onToggle={() => toggleSection('general')} sectionRef={sectionRefs.current['general']}>
         <div className="space-y-4">
           <FormField label="Business Name">
             <ControlledInput
@@ -304,7 +348,7 @@ export function FoundationsTab({ clientId, data, fullData, readOnly = false }: F
         </div>
       </Section>
 
-      <Section title="Brand Identity" expanded={expandedSections.has('brand')} onToggle={() => toggleSection('brand')}>
+      <Section title="Brand Identity" expanded={expandedSections.has('brand')} onToggle={() => toggleSection('brand')} sectionRef={sectionRefs.current['brand']}>
         <div className="space-y-4">
           <FormField label="Brand Story">
             <ControlledTextarea
@@ -397,7 +441,7 @@ export function FoundationsTab({ clientId, data, fullData, readOnly = false }: F
         </div>
       </Section>
 
-      <Section title="Services" expanded={expandedSections.has('services')} onToggle={() => toggleSection('services')}>
+      <Section title="Services" expanded={expandedSections.has('services')} onToggle={() => toggleSection('services')} sectionRef={sectionRefs.current['services']}>
         <div className="space-y-4">
           <FormField label="Services Offered">
             {(services.services || []).map((service: any, index: number) => (
@@ -433,7 +477,7 @@ export function FoundationsTab({ clientId, data, fullData, readOnly = false }: F
         </div>
       </Section>
 
-      <Section title="Providers / Staff" expanded={expandedSections.has('providers')} onToggle={() => toggleSection('providers')}>
+      <Section title="Providers / Staff" expanded={expandedSections.has('providers')} onToggle={() => toggleSection('providers')} sectionRef={sectionRefs.current['providers']}>
         <div className="space-y-4">
           <p className="text-sm text-[#6B7280]">Add information about key staff members or providers</p>
           {(services.providers || []).map((provider: any, index: number) => (
@@ -481,7 +525,7 @@ export function FoundationsTab({ clientId, data, fullData, readOnly = false }: F
         </div>
       </Section>
 
-      <Section title="Social Media" expanded={expandedSections.has('social')} onToggle={() => toggleSection('social')}>
+      <Section title="Social Media" expanded={expandedSections.has('social')} onToggle={() => toggleSection('social')} sectionRef={sectionRefs.current['social']}>
         <div className="space-y-4">
           {['facebook', 'instagram', 'twitter', 'linkedin', 'tiktok', 'youtube'].map((platform) => (
             <FormField key={platform} label={platform.charAt(0).toUpperCase() + platform.slice(1)}>
@@ -501,13 +545,21 @@ export function FoundationsTab({ clientId, data, fullData, readOnly = false }: F
       </Section>
     </div>
   );
+});
+
+interface SectionProps {
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  sectionRef?: React.RefObject<HTMLDivElement | null>;
 }
 
-function Section({ title, expanded, onToggle, children }: { title: string; expanded: boolean; onToggle: () => void; children: React.ReactNode }) {
+function Section({ title, expanded, onToggle, children, sectionRef }: SectionProps) {
   return (
-    <div className="bg-white border border-[#E5E7EB] rounded-lg shadow-sm overflow-hidden">
+    <div ref={sectionRef} className="bg-white border border-[#E5E7EB] rounded-lg shadow-sm overflow-hidden scroll-mt-8">
       <button onClick={onToggle} className="w-full px-4 py-4 flex items-center justify-between hover:bg-[#F9FAFB] transition-colors">
-        <h3 className="text-base font-semibold text-[#374151]">{title}</h3>
+        <h3 className="text-lg font-semibold text-[#374151]">{title}</h3>
         <FontAwesomeIcon icon={expanded ? faChevronDown : faChevronRight} className="w-4 h-4 text-[#6B7280]" />
       </button>
       {expanded && <div className="px-4 pb-6 border-t border-[#E5E7EB] pt-4">{children}</div>}

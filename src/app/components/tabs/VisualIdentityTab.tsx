@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faChevronDown,
@@ -9,6 +9,7 @@ import {
 import { useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
+import { TocSection } from '../TableOfContents';
 
 // Controlled input component
 interface ControlledInputProps {
@@ -88,11 +89,37 @@ interface VisualIdentityTabProps {
   readOnly?: boolean;
 }
 
-export function VisualIdentityTab({ clientId, data, fullData, readOnly = false }: VisualIdentityTabProps) {
+export interface VisualIdentityTabHandle {
+  getSections: () => TocSection[];
+  expandedSections: Set<string>;
+  expandSection: (sectionId: string) => void;
+}
+
+// Section configuration for ToC
+const SECTION_CONFIG = [
+  { id: 'logo', title: 'Logo' },
+  { id: 'color', title: 'Color' },
+  { id: 'typography', title: 'Typography' },
+  { id: 'imagery', title: 'Photography & Imagery' },
+  { id: 'graphics', title: 'Graphic Elements' },
+  { id: 'digital', title: 'Digital Applications' },
+  { id: 'print', title: 'Print Applications' },
+];
+
+export const VisualIdentityTab = forwardRef<VisualIdentityTabHandle, VisualIdentityTabProps>(
+  function VisualIdentityTab({ clientId, data, fullData, readOnly = false }, ref) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['logo', 'color'])
   );
   const updateClient = useMutation(api.clients.update);
+
+  // Create refs for each section
+  const sectionRefs = useRef<Record<string, React.RefObject<HTMLDivElement | null>>>({});
+  SECTION_CONFIG.forEach(({ id }) => {
+    if (!sectionRefs.current[id]) {
+      sectionRefs.current[id] = { current: null };
+    }
+  });
 
   const toggleSection = (section: string) => {
     const newExpanded = new Set(expandedSections);
@@ -103,6 +130,25 @@ export function VisualIdentityTab({ clientId, data, fullData, readOnly = false }
     }
     setExpandedSections(newExpanded);
   };
+
+  const expandSection = (sectionId: string) => {
+    if (!expandedSections.has(sectionId)) {
+      const newExpanded = new Set(expandedSections);
+      newExpanded.add(sectionId);
+      setExpandedSections(newExpanded);
+    }
+  };
+
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    getSections: () => SECTION_CONFIG.map(({ id, title }) => ({
+      id,
+      title,
+      ref: sectionRefs.current[id],
+    })),
+    expandedSections,
+    expandSection,
+  }), [expandedSections]);
 
   // Data extraction
   const logo = data?.logo || {};
@@ -247,6 +293,7 @@ export function VisualIdentityTab({ clientId, data, fullData, readOnly = false }
         title="Logo"
         expanded={expandedSections.has('logo')}
         onToggle={() => toggleSection('logo')}
+        sectionRef={sectionRefs.current['logo']}
       >
         <div className="space-y-4">
           <FormField label="Logo Lock-ups">
@@ -340,6 +387,7 @@ export function VisualIdentityTab({ clientId, data, fullData, readOnly = false }
         title="Color"
         expanded={expandedSections.has('color')}
         onToggle={() => toggleSection('color')}
+        sectionRef={sectionRefs.current['color']}
       >
         <div className="space-y-6">
           <ColorPaletteSection title="Primary Colors" colors={primaryColors} path={['visual_identity', 'color', 'palette', 'primary']} onSave={saveArrayItemField} onAdd={handleAddToArray} onRemove={handleRemoveFromArray} readOnly={readOnly} inputClass={inputSmClass} />
@@ -388,6 +436,7 @@ export function VisualIdentityTab({ clientId, data, fullData, readOnly = false }
         title="Typography"
         expanded={expandedSections.has('typography')}
         onToggle={() => toggleSection('typography')}
+        sectionRef={sectionRefs.current['typography']}
       >
         <div className="space-y-4">
           <TypefaceSection title="Primary Typeface" typeface={primaryTypeface} path={['visual_identity', 'typography', 'primary_typeface']} onSave={saveField} readOnly={readOnly} inputClass={inputClass} inputSmClass={inputSmClass} />
@@ -425,6 +474,7 @@ export function VisualIdentityTab({ clientId, data, fullData, readOnly = false }
         title="Photography & Imagery"
         expanded={expandedSections.has('imagery')}
         onToggle={() => toggleSection('imagery')}
+        sectionRef={sectionRefs.current['imagery']}
       >
         <div className="space-y-4">
           <StringArrayField title="Style Guidelines" items={styleGuidelines} path={['visual_identity', 'photography_and_imagery', 'style_guidelines']} placeholder="e.g., Bright and airy natural lighting" onSave={saveSimpleArrayItem} onAdd={handleAddToArray} onRemove={handleRemoveFromArray} readOnly={readOnly} />
@@ -440,6 +490,7 @@ export function VisualIdentityTab({ clientId, data, fullData, readOnly = false }
         title="Graphic Elements"
         expanded={expandedSections.has('graphics')}
         onToggle={() => toggleSection('graphics')}
+        sectionRef={sectionRefs.current['graphics']}
       >
         <div className="space-y-4">
           <div className="p-4 bg-[#F9FAFB] border border-[#E5E7EB] rounded-md">
@@ -505,6 +556,7 @@ export function VisualIdentityTab({ clientId, data, fullData, readOnly = false }
         title="Digital Applications"
         expanded={expandedSections.has('digital')}
         onToggle={() => toggleSection('digital')}
+        sectionRef={sectionRefs.current['digital']}
       >
         <div className="space-y-4">
           <FormField label="Website Elements">
@@ -550,6 +602,7 @@ export function VisualIdentityTab({ clientId, data, fullData, readOnly = false }
         title="Print Applications"
         expanded={expandedSections.has('print')}
         onToggle={() => toggleSection('print')}
+        sectionRef={sectionRefs.current['print']}
       >
         <div className="space-y-4">
           <FormField label="Business Cards">
@@ -599,14 +652,22 @@ export function VisualIdentityTab({ clientId, data, fullData, readOnly = false }
       </Section>
     </div>
   );
-}
+});
 
 // Helper Components
-function Section({ title, expanded, onToggle, children }: { title: string; expanded: boolean; onToggle: () => void; children: React.ReactNode }) {
+interface SectionProps {
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  sectionRef?: React.RefObject<HTMLDivElement | null>;
+}
+
+function Section({ title, expanded, onToggle, children, sectionRef }: SectionProps) {
   return (
-    <div className="bg-white border border-[#E5E7EB] rounded-lg shadow-sm overflow-hidden">
+    <div ref={sectionRef} className="bg-white border border-[#E5E7EB] rounded-lg shadow-sm overflow-hidden scroll-mt-8">
       <button onClick={onToggle} className="w-full px-4 py-4 flex items-center justify-between hover:bg-[#F9FAFB] transition-colors">
-        <h3 className="text-base font-semibold text-[#374151]">{title}</h3>
+        <h3 className="text-lg font-semibold text-[#374151]">{title}</h3>
         <FontAwesomeIcon icon={expanded ? faChevronDown : faChevronRight} className="w-4 h-4 text-[#6B7280]" />
       </button>
       {expanded && <div className="px-4 pb-6 border-t border-[#E5E7EB] pt-4">{children}</div>}

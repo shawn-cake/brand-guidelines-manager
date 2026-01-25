@@ -15,13 +15,13 @@ A narrative chronicle of the project journey - the decisions, discoveries, and p
 
 ## Current Context
 
-**Last Updated:** 2026-01-24
+**Last Updated:** 2026-01-25
 
 ### Project State
 - **Project:** Brand Guidelines Manager
 - **Version:** v0.1.0-dev
 - **Active Branch:** `main`
-- **Phase:** Feature Development - Document Import complete
+- **Phase:** Feature Development - UI Polish
 
 ### Current Objectives
 - [x] Implement Version History with real Convex data
@@ -31,6 +31,7 @@ A narrative chronicle of the project journey - the decisions, discoveries, and p
 - [x] Document Import feature with Claude AI extraction
 - [x] Add sidebar metadata (company name, version)
 - [x] Auto-sync version from DEVLOG
+- [x] Share URL button with clipboard copy and toast notification
 - [ ] Test Version History across all tabs
 - [ ] Add data validation and error handling
 
@@ -40,6 +41,28 @@ A narrative chronicle of the project journey - the decisions, discoveries, and p
 ---
 
 ## Daily Log - Newest First
+
+### 2026-01-25: Share URL Button and Toast Notifications
+
+**The Situation:** The Share URL button in the client dashboard header was non-functional and displayed both icon and text, inconsistent with the icon-only Version History button.
+
+**The Challenge:** (1) Button needed copy-to-clipboard functionality, (2) Users needed visual confirmation when URL was copied, (3) Icon-only buttons needed tooltips for accessibility.
+
+**The Decision:** Implemented clipboard copy with `navigator.clipboard.writeText()`, added Sonner toast notifications for user feedback, and wrapped both icon-only buttons with Radix UI Tooltip components.
+
+**Why This Matters:** Share URL is essential for collaboration - users can quickly share a direct link to a client's brand guidelines. Toast notifications provide immediate feedback, and tooltips ensure icon-only buttons remain accessible.
+
+**The Implementation:**
+- Added `Toaster` component from Sonner to `App.tsx` for global toast support
+- Updated Share URL button to copy `window.location.href` and show success toast
+- Changed Share URL button to icon-only style (matching Version History)
+- Wrapped both buttons with `Tooltip`, `TooltipTrigger`, and `TooltipContent` components
+
+**The Result:** Share URL button copies current page URL to clipboard with "URL copied to clipboard" toast confirmation. Both icon-only buttons show descriptive tooltips on hover.
+
+**Files Changed:** `src/app/App.tsx`, `src/app/pages/ClientDashboard.tsx`
+
+---
 
 ### 2026-01-24: Added Sidebar Metadata and Auto-Sync Version
 

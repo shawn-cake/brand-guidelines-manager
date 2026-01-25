@@ -1,9 +1,10 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronDown, faChevronRight, faPlus, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { useMutation } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
+import { TocSection } from '../TableOfContents';
 
 // Controlled input component
 interface ControlledInputProps {
@@ -83,11 +84,34 @@ interface AudiencesTabProps {
   readOnly?: boolean;
 }
 
-export function AudiencesTab({ clientId, data, fullData, readOnly = false }: AudiencesTabProps) {
+export interface AudiencesTabHandle {
+  getSections: () => TocSection[];
+  expandedSections: Set<string>;
+  expandSection: (sectionId: string) => void;
+}
+
+// Section configuration for ToC
+const SECTION_CONFIG = [
+  { id: 'primary', title: 'Primary Audience' },
+  { id: 'secondary', title: 'Secondary Audiences' },
+  { id: 'personas', title: 'Customer Personas' },
+  { id: 'journey', title: 'Customer Journey' },
+];
+
+export const AudiencesTab = forwardRef<AudiencesTabHandle, AudiencesTabProps>(
+  function AudiencesTab({ clientId, data, fullData, readOnly = false }, ref) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['primary', 'personas'])
   );
   const updateClient = useMutation(api.clients.update);
+
+  // Create refs for each section
+  const sectionRefs = useRef<Record<string, React.RefObject<HTMLDivElement | null>>>({});
+  SECTION_CONFIG.forEach(({ id }) => {
+    if (!sectionRefs.current[id]) {
+      sectionRefs.current[id] = { current: null };
+    }
+  });
 
   const toggleSection = (section: string) => {
     const newExpanded = new Set(expandedSections);
@@ -98,6 +122,25 @@ export function AudiencesTab({ clientId, data, fullData, readOnly = false }: Aud
     }
     setExpandedSections(newExpanded);
   };
+
+  const expandSection = (sectionId: string) => {
+    if (!expandedSections.has(sectionId)) {
+      const newExpanded = new Set(expandedSections);
+      newExpanded.add(sectionId);
+      setExpandedSections(newExpanded);
+    }
+  };
+
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    getSections: () => SECTION_CONFIG.map(({ id, title }) => ({
+      id,
+      title,
+      ref: sectionRefs.current[id],
+    })),
+    expandedSections,
+    expandSection,
+  }), [expandedSections]);
 
   // Data extraction
   const primaryAudience = data?.primary_audience || {};
@@ -203,6 +246,7 @@ export function AudiencesTab({ clientId, data, fullData, readOnly = false }: Aud
         title="Primary Audience"
         expanded={expandedSections.has('primary')}
         onToggle={() => toggleSection('primary')}
+        sectionRef={sectionRefs.current['primary']}
       >
         <div className="space-y-4">
           <p className="text-sm text-[#6B7280]">
@@ -355,6 +399,7 @@ export function AudiencesTab({ clientId, data, fullData, readOnly = false }: Aud
         title="Secondary Audiences"
         expanded={expandedSections.has('secondary')}
         onToggle={() => toggleSection('secondary')}
+        sectionRef={sectionRefs.current['secondary']}
       >
         <div className="space-y-4">
           <p className="text-sm text-[#6B7280] mb-4">
@@ -424,6 +469,7 @@ export function AudiencesTab({ clientId, data, fullData, readOnly = false }: Aud
         title="Customer Personas"
         expanded={expandedSections.has('personas')}
         onToggle={() => toggleSection('personas')}
+        sectionRef={sectionRefs.current['personas']}
       >
         <div className="space-y-4">
           <p className="text-sm text-[#6B7280] mb-4">
@@ -518,6 +564,7 @@ export function AudiencesTab({ clientId, data, fullData, readOnly = false }: Aud
         title="Customer Journey"
         expanded={expandedSections.has('journey')}
         onToggle={() => toggleSection('journey')}
+        sectionRef={sectionRefs.current['journey']}
       >
         <div className="space-y-4">
           <p className="text-sm text-[#6B7280]">
@@ -590,13 +637,21 @@ export function AudiencesTab({ clientId, data, fullData, readOnly = false }: Aud
       </Section>
     </div>
   );
+});
+
+interface SectionProps {
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  sectionRef?: React.RefObject<HTMLDivElement | null>;
 }
 
-function Section({ title, expanded, onToggle, children }: { title: string; expanded: boolean; onToggle: () => void; children: React.ReactNode }) {
+function Section({ title, expanded, onToggle, children, sectionRef }: SectionProps) {
   return (
-    <div className="bg-white border border-[#E5E7EB] rounded-lg shadow-sm overflow-hidden">
+    <div ref={sectionRef} className="bg-white border border-[#E5E7EB] rounded-lg shadow-sm overflow-hidden scroll-mt-8">
       <button onClick={onToggle} className="w-full px-4 py-4 flex items-center justify-between hover:bg-[#F9FAFB] transition-colors">
-        <h3 className="text-base font-semibold text-[#374151]">{title}</h3>
+        <h3 className="text-lg font-semibold text-[#374151]">{title}</h3>
         <FontAwesomeIcon icon={expanded ? faChevronDown : faChevronRight} className="w-4 h-4 text-[#6B7280]" />
       </button>
       {expanded && <div className="px-4 pb-6 border-t border-[#E5E7EB] pt-4">{children}</div>}

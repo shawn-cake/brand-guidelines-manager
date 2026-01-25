@@ -1,18 +1,21 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUpload, faDownload, faClockRotateLeft, faCheck, faShareNodes, faSpinner, faPen, faArrowLeft, faFileImport } from '@fortawesome/free-solid-svg-icons';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
-import { FoundationsTab } from '@/app/components/tabs/FoundationsTab';
-import { PersonalityTab } from '@/app/components/tabs/PersonalityTab';
-import { AudiencesTab } from '@/app/components/tabs/AudiencesTab';
-import { VisualIdentityTab } from '@/app/components/tabs/VisualIdentityTab';
+import { FoundationsTab, FoundationsTabHandle } from '@/app/components/tabs/FoundationsTab';
+import { PersonalityTab, PersonalityTabHandle } from '@/app/components/tabs/PersonalityTab';
+import { AudiencesTab, AudiencesTabHandle } from '@/app/components/tabs/AudiencesTab';
+import { VisualIdentityTab, VisualIdentityTabHandle } from '@/app/components/tabs/VisualIdentityTab';
 import { VersionHistoryPanel } from '@/app/components/VersionHistoryPanel';
 import { ExportDropdown } from '@/app/components/ExportDropdown';
 import { ImportDocumentModal } from '@/app/components/ImportDocumentModal';
 import { ReviewExtractedFieldsModal } from '@/app/components/ReviewExtractedFieldsModal';
+import { TableOfContents, TocSection } from '@/app/components/TableOfContents';
+import { toast } from 'sonner';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/app/components/ui/tooltip';
 
 type TabType = 'foundations' | 'personality' | 'audiences' | 'visual';
 
@@ -27,6 +30,17 @@ export function ClientDashboard() {
   const [editedName, setEditedName] = useState('');
   const [viewingVersionId, setViewingVersionId] = useState<Id<"versions"> | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // Refs for ToC integration
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const foundationsTabRef = useRef<FoundationsTabHandle>(null);
+  const personalityTabRef = useRef<PersonalityTabHandle>(null);
+  const audiencesTabRef = useRef<AudiencesTabHandle>(null);
+  const visualTabRef = useRef<VisualIdentityTabHandle>(null);
+
+  // ToC state - force re-render when sections change
+  const [tocSections, setTocSections] = useState<TocSection[]>([]);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   const client = useQuery(
     api.clients.get,
@@ -71,6 +85,80 @@ export function ClientDashboard() {
   useEffect(() => {
     console.log('=== viewingVersionId changed ===', viewingVersionId);
   }, [viewingVersionId]);
+
+  // Update ToC sections when active tab changes or client loads
+  useEffect(() => {
+    // Don't run if client hasn't loaded yet
+    if (!client) return;
+
+    const updateTocSections = () => {
+      let ref: FoundationsTabHandle | PersonalityTabHandle | AudiencesTabHandle | VisualIdentityTabHandle | null = null;
+
+      switch (activeTab) {
+        case 'foundations':
+          ref = foundationsTabRef.current;
+          break;
+        case 'personality':
+          ref = personalityTabRef.current;
+          break;
+        case 'audiences':
+          ref = audiencesTabRef.current;
+          break;
+        case 'visual':
+          ref = visualTabRef.current;
+          break;
+      }
+
+      if (ref) {
+        setTocSections(ref.getSections());
+        setExpandedSections(ref.expandedSections);
+      }
+    };
+
+    // Use a small delay to ensure the tab component has mounted
+    const timer = setTimeout(updateTocSections, 100);
+    return () => clearTimeout(timer);
+  }, [activeTab, client]);
+
+  // Handle ToC section click
+  const handleSectionClick = useCallback((sectionId: string) => {
+    let ref: FoundationsTabHandle | PersonalityTabHandle | AudiencesTabHandle | VisualIdentityTabHandle | null = null;
+
+    switch (activeTab) {
+      case 'foundations':
+        ref = foundationsTabRef.current;
+        break;
+      case 'personality':
+        ref = personalityTabRef.current;
+        break;
+      case 'audiences':
+        ref = audiencesTabRef.current;
+        break;
+      case 'visual':
+        ref = visualTabRef.current;
+        break;
+    }
+
+    if (ref) {
+      // Expand the section if it's collapsed
+      ref.expandSection(sectionId);
+
+      // Update local expanded sections state
+      setExpandedSections(new Set([...ref.expandedSections, sectionId]));
+
+      // Scroll to the section after accordion expands
+      const section = ref.getSections().find(s => s.id === sectionId);
+      if (section?.ref.current) {
+        // Use scrollIntoView for reliable scrolling
+        setTimeout(() => {
+          section.ref.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          });
+        }, 100);
+      }
+    }
+  }, [activeTab]);
 
   const handleNameSave = async () => {
     if (!client || editedName.trim() === '') return;
@@ -232,16 +320,35 @@ export function ClientDashboard() {
                   />
                 )}
               </div>
-              <button className="px-4 py-2 bg-white border border-[#D1D5DB] text-[#374151] rounded-md hover:bg-[#F9FAFB] transition-colors text-sm font-medium flex items-center gap-2">
-                <FontAwesomeIcon icon={faShareNodes} className="w-3.5 h-3.5" />
-                Share URL
-              </button>
-              <button
-                onClick={() => setShowVersionHistory(true)}
-                className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#374151] rounded-md hover:bg-[#F9FAFB] transition-colors"
-              >
-                <FontAwesomeIcon icon={faClockRotateLeft} className="w-4 h-4" />
-              </button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.href);
+                      toast.success('URL copied to clipboard');
+                    }}
+                    className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#374151] rounded-md hover:bg-[#F9FAFB] transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faShareNodes} className="w-4 h-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  Share URL
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setShowVersionHistory(true)}
+                    className="px-3 py-2 bg-white border border-[#D1D5DB] text-[#374151] rounded-md hover:bg-[#F9FAFB] transition-colors"
+                  >
+                    <FontAwesomeIcon icon={faClockRotateLeft} className="w-4 h-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  Version History
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </div>
@@ -266,46 +373,61 @@ export function ClientDashboard() {
         </div>
       </div>
 
-      {/* Content Area */}
-      <div className="flex-1 overflow-y-scroll bg-[#F9FAFB]">
-        <div className="max-w-[800px] mx-auto py-8 px-8">
-          {activeTab === 'foundations' && (
-            <FoundationsTab
-              key={`foundations-${viewingVersionId ? String(viewingVersionId) : 'current-draft'}`}
-              clientId={client._id}
-              data={displayData.foundations}
-              fullData={displayData}
-              readOnly={isViewingVersion}
-            />
-          )}
-          {activeTab === 'personality' && (
-            <PersonalityTab
-              key={`personality-${viewingVersionId ? String(viewingVersionId) : 'current-draft'}`}
-              clientId={client._id}
-              data={displayData.personality_and_tone}
-              fullData={displayData}
-              readOnly={isViewingVersion}
-            />
-          )}
-          {activeTab === 'audiences' && (
-            <AudiencesTab
-              key={`audiences-${viewingVersionId ? String(viewingVersionId) : 'current-draft'}`}
-              clientId={client._id}
-              data={displayData.target_audiences}
-              fullData={displayData}
-              readOnly={isViewingVersion}
-            />
-          )}
-          {activeTab === 'visual' && (
-            <VisualIdentityTab
-              key={`visual-${viewingVersionId ? String(viewingVersionId) : 'current-draft'}`}
-              clientId={client._id}
-              data={displayData.visual_identity}
-              fullData={displayData}
-              readOnly={isViewingVersion}
-            />
-          )}
+      {/* Content Area with ToC */}
+      <div className="flex-1 flex overflow-hidden bg-[#F9FAFB]">
+        {/* Main Content */}
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-scroll">
+          <div className="max-w-[800px] mx-auto py-8 px-8">
+            {activeTab === 'foundations' && (
+              <FoundationsTab
+                ref={foundationsTabRef}
+                key={`foundations-${viewingVersionId ? String(viewingVersionId) : 'current-draft'}`}
+                clientId={client._id}
+                data={displayData.foundations}
+                fullData={displayData}
+                readOnly={isViewingVersion}
+              />
+            )}
+            {activeTab === 'personality' && (
+              <PersonalityTab
+                ref={personalityTabRef}
+                key={`personality-${viewingVersionId ? String(viewingVersionId) : 'current-draft'}`}
+                clientId={client._id}
+                data={displayData.personality_and_tone}
+                fullData={displayData}
+                readOnly={isViewingVersion}
+              />
+            )}
+            {activeTab === 'audiences' && (
+              <AudiencesTab
+                ref={audiencesTabRef}
+                key={`audiences-${viewingVersionId ? String(viewingVersionId) : 'current-draft'}`}
+                clientId={client._id}
+                data={displayData.target_audiences}
+                fullData={displayData}
+                readOnly={isViewingVersion}
+              />
+            )}
+            {activeTab === 'visual' && (
+              <VisualIdentityTab
+                ref={visualTabRef}
+                key={`visual-${viewingVersionId ? String(viewingVersionId) : 'current-draft'}`}
+                clientId={client._id}
+                data={displayData.visual_identity}
+                fullData={displayData}
+                readOnly={isViewingVersion}
+              />
+            )}
+          </div>
         </div>
+
+        {/* Table of Contents Sidebar */}
+        <TableOfContents
+          sections={tocSections}
+          scrollContainerRef={scrollContainerRef}
+          onSectionClick={handleSectionClick}
+          expandedSections={expandedSections}
+        />
       </div>
 
       {/* Version History Panel */}
