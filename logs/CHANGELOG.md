@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Share URL button functionality - Copies current page URL to clipboard with toast confirmation. Files: `src/app/pages/ClientDashboard.tsx`
 - Tooltips for icon-only buttons - Share URL and Version History buttons now show tooltips on hover. Files: `src/app/pages/ClientDashboard.tsx`
 - Toast notification system - Added Sonner Toaster component to app root for global toast support. Files: `src/app/App.tsx`
+- Clickable version badge - Version badge (e.g., "v1.0") now opens version history panel on click. Files: `src/app/pages/ClientDashboard.tsx`
+- Multiple URL import support - Import documents from multiple URLs simultaneously with add/remove controls. Files: `src/app/components/ImportDocumentModal.tsx`
 - Auto-sync version from DEVLOG - Build script reads version from logs/DEVLOG.md and generates src/version.ts. Files: `scripts/sync-version.js`, `src/version.ts`, `package.json`
 - Sidebar metadata display - Shows "Cake Websites" company name and app version below title. Files: `src/app/components/Sidebar.tsx`
 - Version number in export filenames - Exported files now include version (e.g., `client-brand-guidelines-v1.0.md`). Files: `src/app/components/ExportDropdown.tsx`
@@ -39,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Share URL button styling - Changed from text+icon to icon-only button matching Version History button style. Files: `src/app/pages/ClientDashboard.tsx`
+- Table of Contents positioning - Moved from fixed right sidebar to inside content area with 3/4 - 1/4 split layout. Files: `src/app/pages/ClientDashboard.tsx`, `src/app/components/TableOfContents.tsx`
 - Client name input styling - Fixed height to prevent size change when editing (32px font, 44px height). Files: `src/app/pages/ClientDashboard.tsx`
 - Schema validators - Made all nested object fields optional to support partial data extraction from documents. Files: `convex/schema.ts`
 - Content area scrollbar - Changed from `overflow-y-auto` to `overflow-y-scroll` to prevent layout shift. Files: `src/app/pages/ClientDashboard.tsx`

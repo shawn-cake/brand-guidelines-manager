@@ -128,9 +128,9 @@ export function TableOfContents({
 
   return (
     <>
-      {/* Desktop: Sticky sidebar */}
+      {/* Desktop: Sticky sidebar within content area */}
       <div className="hidden lg:block w-48 flex-shrink-0">
-        <div className="sticky top-8 pl-6">{tocContent}</div>
+        <div className="sticky top-8">{tocContent}</div>
       </div>
 
       {/* Mobile: Floating button + dropdown */}

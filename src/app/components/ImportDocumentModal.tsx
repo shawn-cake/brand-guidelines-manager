@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCloudUploadAlt, faFile, faFilePdf, faFileWord, faFileAlt, faSpinner, faTimes, faCheck, faLink, faGlobe } from '@fortawesome/free-solid-svg-icons';
+import { faCloudUploadAlt, faFile, faFilePdf, faFileWord, faFileAlt, faSpinner, faTimes, faCheck, faLink, faGlobe, faPlus, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { useMutation, useAction } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
@@ -31,7 +31,8 @@ interface SelectedFile {
   error?: string;
 }
 
-interface UrlImportState {
+interface UrlImportItem {
+  id: string;
   url: string;
   status: UploadStatus;
   error?: string;
@@ -64,10 +65,16 @@ const FILE_ICONS: Record<FileType, typeof faFilePdf> = {
   html: faGlobe,
 };
 
+const createUrlItem = (): UrlImportItem => ({
+  id: crypto.randomUUID(),
+  url: '',
+  status: 'idle',
+});
+
 export function ImportDocumentModal({ isOpen, onClose, clientId, clientName }: ImportDocumentModalProps) {
   const [importMode, setImportMode] = useState<ImportMode>('file');
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
-  const [urlImport, setUrlImport] = useState<UrlImportState>({ url: '', status: 'idle' });
+  const [urlImports, setUrlImports] = useState<UrlImportItem[]>([createUrlItem()]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -204,58 +211,77 @@ export function ImportDocumentModal({ isOpen, onClose, clientId, clientName }: I
   };
 
   const handleUrlImport = async () => {
-    if (!urlImport.url || urlImport.status === 'uploading' || urlImport.status === 'extracting' || urlImport.status === 'analyzing') return;
+    // Get URLs that are ready to import (have valid URLs and are idle)
+    const urlsToImport = urlImports.filter(item =>
+      item.url && isUrlValid(item.url) && item.status === 'idle'
+    );
 
-    setUrlImport(prev => ({ ...prev, status: 'uploading' }));
+    if (urlsToImport.length === 0) return;
 
-    try {
-      // Step 1: Import from URL (fetches content and creates import record)
-      const result = await importFromUrl({
-        clientId,
-        url: urlImport.url,
-      });
+    // Process each URL
+    for (const urlItem of urlsToImport) {
+      const updateUrlStatus = (id: string, updates: Partial<UrlImportItem>) => {
+        setUrlImports(prev => prev.map(item =>
+          item.id === id ? { ...item, ...updates } : item
+        ));
+      };
 
-      if (!result.success || !result.importId) {
-        throw new Error(result.error || 'Failed to import from URL');
+      updateUrlStatus(urlItem.id, { status: 'uploading' });
+
+      try {
+        // Step 1: Import from URL (fetches content and creates import record)
+        const result = await importFromUrl({
+          clientId,
+          url: urlItem.url,
+        });
+
+        if (!result.success || !result.importId) {
+          throw new Error(result.error || 'Failed to import from URL');
+        }
+
+        // Step 2: Extract text (may already be done for HTML/text content)
+        updateUrlStatus(urlItem.id, { status: 'extracting' });
+
+        const extractionResult = await extractText({ importId: result.importId });
+
+        if (!extractionResult.success) {
+          throw new Error(extractionResult.error || 'Text extraction failed');
+        }
+
+        // Step 3: Analyze with Claude
+        updateUrlStatus(urlItem.id, { status: 'analyzing' });
+
+        const analysisResult = await extractFields({ importId: result.importId });
+
+        if (!analysisResult.success) {
+          throw new Error(analysisResult.error || 'Field extraction failed');
+        }
+
+        updateUrlStatus(urlItem.id, { status: 'success' });
+      } catch (error) {
+        console.error('URL import error:', error);
+        updateUrlStatus(urlItem.id, {
+          status: 'error',
+          error: error instanceof Error ? error.message : 'Import failed',
+        });
       }
-
-      // Step 2: Extract text (may already be done for HTML/text content)
-      setUrlImport(prev => ({ ...prev, status: 'extracting' }));
-
-      const extractionResult = await extractText({ importId: result.importId });
-
-      if (!extractionResult.success) {
-        throw new Error(extractionResult.error || 'Text extraction failed');
-      }
-
-      // Step 3: Analyze with Claude
-      setUrlImport(prev => ({ ...prev, status: 'analyzing' }));
-
-      const analysisResult = await extractFields({ importId: result.importId });
-
-      if (!analysisResult.success) {
-        throw new Error(analysisResult.error || 'Field extraction failed');
-      }
-
-      setUrlImport(prev => ({ ...prev, status: 'success' }));
-
-      // Close modal after short delay to show success state
-      setTimeout(() => {
-        handleClose();
-      }, 1000);
-    } catch (error) {
-      console.error('URL import error:', error);
-      setUrlImport(prev => ({
-        ...prev,
-        status: 'error',
-        error: error instanceof Error ? error.message : 'Import failed',
-      }));
     }
+
+    // Check if all URLs completed successfully
+    setTimeout(() => {
+      setUrlImports(prev => {
+        const allSuccess = prev.every(item => item.status === 'success' || !item.url);
+        if (allSuccess) {
+          handleClose();
+        }
+        return prev;
+      });
+    }, 1000);
   };
 
   const handleClose = () => {
     setSelectedFile(null);
-    setUrlImport({ url: '', status: 'idle' });
+    setUrlImports([createUrlItem()]);
     setImportMode('file');
     setIsDragging(false);
     onClose();
@@ -268,8 +294,24 @@ export function ImportDocumentModal({ isOpen, onClose, clientId, clientName }: I
     }
   };
 
-  const clearUrl = () => {
-    setUrlImport({ url: '', status: 'idle' });
+  const updateUrlValue = (id: string, url: string) => {
+    setUrlImports(prev => prev.map(item =>
+      item.id === id ? { ...item, url, status: 'idle', error: undefined } : item
+    ));
+  };
+
+  const addUrlInput = () => {
+    setUrlImports(prev => [...prev, createUrlItem()]);
+  };
+
+  const removeUrlInput = (id: string) => {
+    setUrlImports(prev => prev.filter(item => item.id !== id));
+  };
+
+  const clearUrlInput = (id: string) => {
+    setUrlImports(prev => prev.map(item =>
+      item.id === id ? { ...item, url: '', status: 'idle', error: undefined } : item
+    ));
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -289,10 +331,11 @@ export function ImportDocumentModal({ isOpen, onClose, clientId, clientName }: I
 
   // Determine button state based on current mode
   const isFileReady = importMode === 'file' && selectedFile && selectedFile.status === 'idle';
-  const isUrlReady = importMode === 'url' && urlImport.url && isUrlValid(urlImport.url) && urlImport.status === 'idle';
+  const validUrls = urlImports.filter(item => item.url && isUrlValid(item.url) && item.status === 'idle');
+  const isUrlReady = importMode === 'url' && validUrls.length > 0;
   const isProcessing =
     (importMode === 'file' && selectedFile && ['uploading', 'extracting', 'analyzing'].includes(selectedFile.status)) ||
-    (importMode === 'url' && ['uploading', 'extracting', 'analyzing'].includes(urlImport.status));
+    (importMode === 'url' && urlImports.some(item => ['uploading', 'extracting', 'analyzing'].includes(item.status)));
 
   const getButtonText = () => {
     if (importMode === 'file') {
@@ -301,10 +344,12 @@ export function ImportDocumentModal({ isOpen, onClose, clientId, clientName }: I
       if (selectedFile?.status === 'analyzing') return 'Analyzing with AI...';
       return 'Upload & Extract';
     } else {
-      if (urlImport.status === 'uploading') return 'Fetching URL...';
-      if (urlImport.status === 'extracting') return 'Extracting text...';
-      if (urlImport.status === 'analyzing') return 'Analyzing with AI...';
-      return 'Import & Extract';
+      const processingUrl = urlImports.find(item => ['uploading', 'extracting', 'analyzing'].includes(item.status));
+      if (processingUrl?.status === 'uploading') return 'Fetching URLs...';
+      if (processingUrl?.status === 'extracting') return 'Extracting text...';
+      if (processingUrl?.status === 'analyzing') return 'Analyzing with AI...';
+      const urlCount = validUrls.length;
+      return urlCount > 1 ? `Import ${urlCount} URLs` : 'Import & Extract';
     }
   };
 
@@ -432,82 +477,108 @@ export function ImportDocumentModal({ isOpen, onClose, clientId, clientName }: I
           ) : (
             // URL Import Mode
             <div className="space-y-4">
-              {urlImport.status === 'idle' || urlImport.status === 'error' ? (
-                <>
-                  <div>
-                    <label htmlFor="url-input" className="block text-sm font-medium text-[#374151] mb-1.5">
-                      Website or Document URL
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <FontAwesomeIcon icon={faGlobe} className="w-4 h-4 text-[#9CA3AF]" />
-                      </div>
-                      <input
-                        id="url-input"
-                        type="url"
-                        value={urlImport.url}
-                        onChange={(e) => setUrlImport({ url: e.target.value, status: 'idle' })}
-                        placeholder="https://example.com/brand-guidelines"
-                        className={`
-                          w-full pl-10 pr-10 py-2.5 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4074A8] focus:border-transparent
-                          ${urlImport.status === 'error' ? 'border-red-300 bg-red-50' : 'border-[#D1D5DB]'}
-                        `}
-                      />
-                      {urlImport.url && (
-                        <button
-                          onClick={clearUrl}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#6B7280] hover:text-[#374151]"
-                        >
-                          <FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
-                        </button>
+              <div>
+                <label className="block text-sm font-medium text-[#374151] mb-1.5">
+                  Website or Document URLs
+                </label>
+                <div className="space-y-2">
+                  {urlImports.map((urlItem, index) => (
+                    <div key={urlItem.id}>
+                      {urlItem.status === 'idle' || urlItem.status === 'error' ? (
+                        // URL input state
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                              <FontAwesomeIcon icon={faGlobe} className="w-4 h-4 text-[#9CA3AF]" />
+                            </div>
+                            <input
+                              type="url"
+                              value={urlItem.url}
+                              onChange={(e) => updateUrlValue(urlItem.id, e.target.value)}
+                              placeholder="https://example.com/brand-guidelines"
+                              className={`
+                                w-full pl-10 pr-10 py-2.5 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4074A8] focus:border-transparent
+                                ${urlItem.status === 'error' ? 'border-red-300 bg-red-50' : 'border-[#D1D5DB]'}
+                              `}
+                            />
+                            {urlItem.url && (
+                              <button
+                                onClick={() => clearUrlInput(urlItem.id)}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#6B7280] hover:text-[#374151]"
+                              >
+                                <FontAwesomeIcon icon={faTimes} className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                          {urlImports.length > 1 && (
+                            <button
+                              onClick={() => removeUrlInput(urlItem.id)}
+                              className="px-3 py-2 text-[#DC2626] hover:bg-[#FEE2E2] rounded-lg transition-colors"
+                              title="Remove URL"
+                            >
+                              <FontAwesomeIcon icon={faTrash} className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        // URL processing/success state
+                        <div className={`
+                          border rounded-lg p-3
+                          ${urlItem.status === 'success' ? 'border-green-300 bg-green-50' : 'border-[#E5E7EB]'}
+                        `}>
+                          <div className="flex items-center gap-3">
+                            <div className={`
+                              w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0
+                              ${urlItem.status === 'success' ? 'bg-green-100' : 'bg-[#F3F4F6]'}
+                            `}>
+                              <FontAwesomeIcon
+                                icon={faGlobe}
+                                className={`w-4 h-4 ${urlItem.status === 'success' ? 'text-green-600' : 'text-[#6B7280]'}`}
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-[#374151] truncate">
+                                {urlItem.url}
+                              </p>
+                              <p className="text-xs text-[#6B7280]">
+                                {urlItem.status === 'uploading' && 'Fetching content...'}
+                                {urlItem.status === 'extracting' && 'Extracting text...'}
+                                {urlItem.status === 'analyzing' && 'Analyzing with AI...'}
+                                {urlItem.status === 'success' && 'Import complete!'}
+                              </p>
+                            </div>
+                            {['uploading', 'extracting', 'analyzing'].includes(urlItem.status) && (
+                              <FontAwesomeIcon icon={faSpinner} className="w-5 h-5 text-[#F2A918] animate-spin" />
+                            )}
+                            {urlItem.status === 'success' && (
+                              <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
+                                <FontAwesomeIcon icon={faCheck} className="w-3 h-3 text-green-600" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {urlItem.error && (
+                        <p className="mt-1 text-xs text-red-600">{urlItem.error}</p>
                       )}
                     </div>
-                    {urlImport.error && (
-                      <p className="mt-1.5 text-xs text-red-600">{urlImport.error}</p>
-                    )}
-                  </div>
-                  <p className="text-xs text-[#6B7280]">
-                    Enter the URL of a webpage, PDF, or document containing brand guidelines. We'll extract and analyze the content automatically.
-                  </p>
-                </>
-              ) : (
-                // URL processing state
-                <div className={`
-                  border rounded-lg p-4
-                  ${urlImport.status === 'success' ? 'border-green-300 bg-green-50' : 'border-[#E5E7EB]'}
-                `}>
-                  <div className="flex items-center gap-3">
-                    <div className={`
-                      w-10 h-10 rounded-lg flex items-center justify-center
-                      ${urlImport.status === 'success' ? 'bg-green-100' : 'bg-[#F3F4F6]'}
-                    `}>
-                      <FontAwesomeIcon
-                        icon={faGlobe}
-                        className={`w-5 h-5 ${urlImport.status === 'success' ? 'text-green-600' : 'text-[#6B7280]'}`}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[#374151] truncate">
-                        {urlImport.url}
-                      </p>
-                      <p className="text-xs text-[#6B7280]">
-                        {urlImport.status === 'uploading' && 'Fetching content...'}
-                        {urlImport.status === 'extracting' && 'Extracting text...'}
-                        {urlImport.status === 'analyzing' && 'Analyzing with AI...'}
-                        {urlImport.status === 'success' && 'Import complete!'}
-                      </p>
-                    </div>
-                    {['uploading', 'extracting', 'analyzing'].includes(urlImport.status) && (
-                      <FontAwesomeIcon icon={faSpinner} className="w-5 h-5 text-[#F2A918] animate-spin" />
-                    )}
-                    {urlImport.status === 'success' && (
-                      <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
-                        <FontAwesomeIcon icon={faCheck} className="w-3 h-3 text-green-600" />
-                      </div>
-                    )}
-                  </div>
+                  ))}
                 </div>
-              )}
+
+                {/* Add URL button */}
+                {!isProcessing && (
+                  <button
+                    onClick={addUrlInput}
+                    className="mt-2 px-3 py-1.5 text-sm text-[#4074A8] hover:bg-[#EBF1F7] rounded-md transition-colors flex items-center gap-2"
+                  >
+                    <FontAwesomeIcon icon={faPlus} className="w-3.5 h-3.5" />
+                    Add another URL
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-[#6B7280]">
+                Enter URLs of webpages, PDFs, or documents containing brand guidelines. We'll extract and analyze the content automatically.
+              </p>
             </div>
           )}
         </div>

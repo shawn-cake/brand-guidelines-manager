@@ -32,6 +32,9 @@ A narrative chronicle of the project journey - the decisions, discoveries, and p
 - [x] Add sidebar metadata (company name, version)
 - [x] Auto-sync version from DEVLOG
 - [x] Share URL button with clipboard copy and toast notification
+- [x] Clickable version badge to open version history
+- [x] Table of Contents repositioned inside content area
+- [x] Multiple URL import support
 - [ ] Test Version History across all tabs
 - [ ] Add data validation and error handling
 
@@ -41,6 +44,32 @@ A narrative chronicle of the project journey - the decisions, discoveries, and p
 ---
 
 ## Daily Log - Newest First
+
+### 2026-01-25: Quality of Life Improvements
+
+**The Situation:** Users requested several small but impactful UX improvements: (1) clicking the version badge should open version history, (2) the Table of Contents should be inside the content area rather than a fixed sidebar, (3) importing from multiple URLs at once should be supported.
+
+**The Challenge:** The ToC repositioning required restructuring the layout from a fixed sidebar to an inline element that stays sticky within the scrollable content area. The multi-URL import required converting single-object state to array-based state with individual status tracking.
+
+**The Decision:** Implemented all three improvements: version badge as clickable button, ToC moved inside content area with 3/4 - 1/4 split layout, and multi-URL import with add/remove controls.
+
+**Why This Matters:** These small improvements significantly enhance the user experience. Version badge click is intuitive, ToC inside content area feels more natural, and multi-URL import saves time when onboarding clients with multiple source documents.
+
+**The Implementation:**
+- Converted version badge from `<span>` to `<button>` with onClick to open version history panel
+- Restructured content area layout: moved scroll container to wrap both content and ToC
+- Created flex container with `max-w-[1200px]`, main content at 3/4 width, ToC at 1/4 width
+- Changed ToC sticky positioning to `top-8` to align with first accordion
+- Converted URL import state from single object to array of `UrlImportItem` with UUID-based IDs
+- Added helper functions: `addUrlInput`, `removeUrlInput`, `updateUrlValue`, `clearUrlInput`
+- Updated UI to show multiple URL inputs with add button and trash icon for removal
+- Modified import logic to process URLs sequentially with individual status tracking
+
+**The Result:** Version badge opens version history on click. ToC appears inside content area and stays sticky while scrolling. Users can import from multiple URLs simultaneously, with each URL showing its own processing status.
+
+**Files Changed:** `src/app/pages/ClientDashboard.tsx`, `src/app/components/TableOfContents.tsx`, `src/app/components/ImportDocumentModal.tsx`
+
+---
 
 ### 2026-01-25: Share URL Button and Toast Notifications
 

@@ -275,9 +275,13 @@ export function ClientDashboard() {
                 </button>
               </div>
             )}
-            <span className="px-2 py-0.5 bg-[#FDE9B8] text-[#B87D0E] text-xs font-medium rounded">
+            <button
+              onClick={() => setShowVersionHistory(true)}
+              className="px-2 py-0.5 bg-[#FDE9B8] text-[#B87D0E] text-xs font-medium rounded hover:bg-[#F2A918] hover:text-[#111827] transition-colors cursor-pointer"
+              title="View version history"
+            >
               v{client.current_version || '1.0'}
-            </span>
+            </button>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-[#059669] text-sm">
@@ -374,10 +378,10 @@ export function ClientDashboard() {
       </div>
 
       {/* Content Area with ToC */}
-      <div className="flex-1 flex overflow-hidden bg-[#F9FAFB]">
-        {/* Main Content */}
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-scroll">
-          <div className="max-w-[800px] mx-auto py-8 px-8">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-scroll bg-[#F9FAFB]">
+        <div className="flex gap-8 py-8 px-8 max-w-[1200px] mx-auto">
+          {/* Main Content - 3/4 width */}
+          <div className="flex-1 min-w-0 lg:w-3/4">
             {activeTab === 'foundations' && (
               <FoundationsTab
                 ref={foundationsTabRef}
@@ -419,15 +423,15 @@ export function ClientDashboard() {
               />
             )}
           </div>
-        </div>
 
-        {/* Table of Contents Sidebar */}
-        <TableOfContents
-          sections={tocSections}
-          scrollContainerRef={scrollContainerRef}
-          onSectionClick={handleSectionClick}
-          expandedSections={expandedSections}
-        />
+          {/* Table of Contents - 1/4 width */}
+          <TableOfContents
+            sections={tocSections}
+            scrollContainerRef={scrollContainerRef}
+            onSectionClick={handleSectionClick}
+            expandedSections={expandedSections}
+          />
+        </div>
       </div>
 
       {/* Version History Panel */}
