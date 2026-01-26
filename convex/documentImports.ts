@@ -39,6 +39,30 @@ export const create = mutation({
   },
 });
 
+// Create a document import from pasted text (skips file upload and text extraction)
+export const createFromText = mutation({
+  args: {
+    clientId: v.id("clients"),
+    text: v.string(),
+    title: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const filename = args.title || `Pasted Text - ${new Date(now).toLocaleDateString()}`;
+
+    const importId = await ctx.db.insert("document_imports", {
+      client_id: args.clientId,
+      filename: filename,
+      file_type: "txt",
+      extracted_text: args.text,
+      status: "processing", // Ready for Claude analysis
+      created_at: now,
+    });
+
+    return importId;
+  },
+});
+
 // Get all document imports for a client
 export const listByClient = query({
   args: { clientId: v.id("clients") },

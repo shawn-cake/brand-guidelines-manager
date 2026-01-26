@@ -25,6 +25,7 @@ interface AudiencesTabProps {
 export interface AudiencesTabHandle {
   getSections: () => TocSection[];
   expandedSections: Set<string>;
+  completedSections: Set<string>;
   expandSection: (sectionId: string) => void;
 }
 
@@ -77,17 +78,6 @@ export const AudiencesTab = forwardRef<AudiencesTabHandle, AudiencesTabProps>(
     }
   };
 
-  // Expose methods to parent via ref
-  useImperativeHandle(ref, () => ({
-    getSections: () => SECTION_CONFIG.map(({ id, title }) => ({
-      id,
-      title,
-      ref: sectionRefs.current[id],
-    })),
-    expandedSections,
-    expandSection,
-  }), [expandedSections]);
-
   // Data extraction
   const primaryAudience = data?.primary_audience || {};
   const primaryDemographics = primaryAudience.demographics || {};
@@ -97,6 +87,59 @@ export const AudiencesTab = forwardRef<AudiencesTabHandle, AudiencesTabProps>(
   const secondaryAudiences = data?.secondary_audiences || [];
   const personas = data?.customer_personas || [];
   const journey = data?.patient_client_journey || {};
+
+  // Calculate section completion status
+  const getCompletedSections = (): Set<string> => {
+    const completed = new Set<string>();
+
+    // Primary Audience: complete if any demographic field is filled
+    const demoFields = ['age_range', 'gender', 'location', 'income_level', 'education_level', 'occupation'] as const;
+    if (
+      demoFields.some(field => primaryDemographics[field]?.trim()) ||
+      primaryPsychographics.some((p: string) => p?.trim()) ||
+      primaryPainPoints.some((p: string) => p?.trim()) ||
+      primaryGoals.some((g: string) => g?.trim())
+    ) {
+      completed.add('primary');
+    }
+
+    // Secondary Audiences: complete if at least 1 secondary audience with a name is added
+    if (secondaryAudiences.some((a: { name?: string }) => a?.name?.trim())) {
+      completed.add('secondary');
+    }
+
+    // Personas: complete if at least 1 persona with a name is added
+    if (personas.some((p: { name?: string }) => p?.name?.trim())) {
+      completed.add('personas');
+    }
+
+    // Customer Journey: complete if at least one stage has content
+    const stages = ['awareness', 'consideration', 'decision', 'experience', 'loyalty'] as const;
+    if (stages.some(stage => {
+      const stageData = journey[stage];
+      if (!stageData) return false;
+      return stageData.thoughts_feelings?.trim() ||
+             (stageData.touchpoints?.length > 0 && stageData.touchpoints.some((t: string) => t?.trim()));
+    })) {
+      completed.add('journey');
+    }
+
+    return completed;
+  };
+
+  const completedSections = getCompletedSections();
+
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    getSections: () => SECTION_CONFIG.map(({ id, title }) => ({
+      id,
+      title,
+      ref: sectionRefs.current[id],
+    })),
+    expandedSections,
+    completedSections,
+    expandSection,
+  }), [expandedSections, completedSections]);
 
   return (
     <div className="space-y-4">

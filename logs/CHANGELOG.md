@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Paste Text import mode - Third import tab allowing users to paste text directly for AI analysis, bypassing file upload. Files: `src/app/components/ImportDocumentModal.tsx`, `convex/documentImports.ts`
 - PDF export functionality - Generate and download brand guidelines as formatted PDF documents using jsPDF. Files: `src/app/components/ExportDropdown.tsx`
 - AI Prompt export - Copy brand guidelines as a general-purpose prompt for use with any AI tool. Files: `src/app/components/ExportDropdown.tsx`
 - Shared form components library - Reusable ControlledInput, ControlledTextarea, ControlledSelect, Section, and FormField components. Files: `src/app/components/form/ControlledInput.tsx`, `src/app/components/form/ControlledTextarea.tsx`, `src/app/components/form/ControlledSelect.tsx`, `src/app/components/form/Section.tsx`, `src/app/components/form/FormField.tsx`, `src/app/components/form/index.ts`

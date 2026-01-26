@@ -41,6 +41,7 @@ export function ClientDashboard() {
   // ToC state - force re-render when sections change
   const [tocSections, setTocSections] = useState<TocSection[]>([]);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [completedSections, setCompletedSections] = useState<Set<string>>(new Set());
 
   const client = useQuery(
     api.clients.get,
@@ -112,6 +113,7 @@ export function ClientDashboard() {
       if (ref) {
         setTocSections(ref.getSections());
         setExpandedSections(ref.expandedSections);
+        setCompletedSections(ref.completedSections);
       }
     };
 
@@ -433,7 +435,7 @@ export function ClientDashboard() {
             sections={tocSections}
             scrollContainerRef={scrollContainerRef}
             onSectionClick={handleSectionClick}
-            expandedSections={expandedSections}
+            completedSections={completedSections}
           />
         </div>
       </div>

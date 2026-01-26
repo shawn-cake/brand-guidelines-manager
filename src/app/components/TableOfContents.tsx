@@ -12,14 +12,14 @@ interface TableOfContentsProps {
   sections: TocSection[];
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
   onSectionClick: (sectionId: string) => void;
-  expandedSections: Set<string>;
+  completedSections: Set<string>;
 }
 
 export function TableOfContents({
   sections,
   scrollContainerRef,
   onSectionClick,
-  expandedSections,
+  completedSections,
 }: TableOfContentsProps) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
@@ -47,7 +47,7 @@ export function TableOfContents({
         On this page
       </h4>
       {sections.map((section) => {
-        const isExpanded = expandedSections.has(section.id);
+        const isComplete = completedSections.has(section.id);
 
         return (
           <button
@@ -58,7 +58,7 @@ export function TableOfContents({
             <span className="flex items-center gap-2">
               <span
                 className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                  isExpanded ? 'bg-[#4074A8]' : 'bg-[#D1D5DB]'
+                  isComplete ? 'bg-[#4074A8]' : 'bg-[#D1D5DB]'
                 }`}
               />
               {section.title}

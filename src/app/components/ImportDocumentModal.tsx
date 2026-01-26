@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCloudUploadAlt, faFile, faFilePdf, faFileWord, faFileAlt, faSpinner, faTimes, faCheck, faLink, faGlobe, faPlus, faTrash } from '@fortawesome/free-solid-svg-icons';
+import { faCloudUploadAlt, faFile, faFilePdf, faFileWord, faFileAlt, faSpinner, faTimes, faCheck, faLink, faGlobe, faPlus, faTrash, faPaste } from '@fortawesome/free-solid-svg-icons';
 import { useMutation, useAction } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
@@ -20,7 +20,7 @@ interface ImportDocumentModalProps {
   clientName: string;
 }
 
-type ImportMode = 'file' | 'url';
+type ImportMode = 'file' | 'url' | 'text';
 type FileType = 'pdf' | 'docx' | 'txt' | 'md' | 'json' | 'html';
 type UploadStatus = 'idle' | 'uploading' | 'extracting' | 'analyzing' | 'success' | 'error';
 
@@ -76,10 +76,14 @@ export function ImportDocumentModal({ isOpen, onClose, clientId, clientName }: I
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [urlImports, setUrlImports] = useState<UrlImportItem[]>([createUrlItem()]);
   const [isDragging, setIsDragging] = useState(false);
+  const [pastedText, setPastedText] = useState('');
+  const [textStatus, setTextStatus] = useState<UploadStatus>('idle');
+  const [textError, setTextError] = useState<string | undefined>();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const generateUploadUrl = useMutation(api.documentImports.generateUploadUrl);
   const createDocumentImport = useMutation(api.documentImports.create);
+  const createFromText = useMutation(api.documentImports.createFromText);
   const importFromUrl = useAction(api.documentImports.importFromUrl);
   const extractText = useAction(api.documentImports.extractText);
   const extractFields = useAction(api.claudeExtraction.extractFields);
@@ -279,9 +283,45 @@ export function ImportDocumentModal({ isOpen, onClose, clientId, clientName }: I
     }, 1000);
   };
 
+  const handleTextImport = async () => {
+    if (!pastedText.trim() || textStatus !== 'idle') return;
+
+    setTextStatus('analyzing');
+    setTextError(undefined);
+
+    try {
+      // Step 1: Create document import with the pasted text
+      const importId = await createFromText({
+        clientId,
+        text: pastedText.trim(),
+      });
+
+      // Step 2: Analyze with Claude (text is already extracted)
+      const analysisResult = await extractFields({ importId });
+
+      if (!analysisResult.success) {
+        throw new Error(analysisResult.error || 'Field extraction failed');
+      }
+
+      setTextStatus('success');
+
+      // Close modal after short delay to show success state
+      setTimeout(() => {
+        handleClose();
+      }, 1000);
+    } catch (error) {
+      console.error('Text import error:', error);
+      setTextStatus('error');
+      setTextError(error instanceof Error ? error.message : 'Import failed');
+    }
+  };
+
   const handleClose = () => {
     setSelectedFile(null);
     setUrlImports([createUrlItem()]);
+    setPastedText('');
+    setTextStatus('idle');
+    setTextError(undefined);
     setImportMode('file');
     setIsDragging(false);
     onClose();
@@ -333,9 +373,11 @@ export function ImportDocumentModal({ isOpen, onClose, clientId, clientName }: I
   const isFileReady = importMode === 'file' && selectedFile && selectedFile.status === 'idle';
   const validUrls = urlImports.filter(item => item.url && isUrlValid(item.url) && item.status === 'idle');
   const isUrlReady = importMode === 'url' && validUrls.length > 0;
+  const isTextReady = importMode === 'text' && pastedText.trim().length > 0 && textStatus === 'idle';
   const isProcessing =
     (importMode === 'file' && selectedFile && ['uploading', 'extracting', 'analyzing'].includes(selectedFile.status)) ||
-    (importMode === 'url' && urlImports.some(item => ['uploading', 'extracting', 'analyzing'].includes(item.status)));
+    (importMode === 'url' && urlImports.some(item => ['uploading', 'extracting', 'analyzing'].includes(item.status))) ||
+    (importMode === 'text' && ['analyzing'].includes(textStatus));
 
   const getButtonText = () => {
     if (importMode === 'file') {
@@ -343,13 +385,26 @@ export function ImportDocumentModal({ isOpen, onClose, clientId, clientName }: I
       if (selectedFile?.status === 'extracting') return 'Extracting text...';
       if (selectedFile?.status === 'analyzing') return 'Analyzing with AI...';
       return 'Upload & Extract';
-    } else {
+    } else if (importMode === 'url') {
       const processingUrl = urlImports.find(item => ['uploading', 'extracting', 'analyzing'].includes(item.status));
       if (processingUrl?.status === 'uploading') return 'Fetching URLs...';
       if (processingUrl?.status === 'extracting') return 'Extracting text...';
       if (processingUrl?.status === 'analyzing') return 'Analyzing with AI...';
       const urlCount = validUrls.length;
       return urlCount > 1 ? `Import ${urlCount} URLs` : 'Import & Extract';
+    } else {
+      if (textStatus === 'analyzing') return 'Analyzing with AI...';
+      return 'Analyze Text';
+    }
+  };
+
+  const handleImport = () => {
+    if (importMode === 'file') {
+      handleUpload();
+    } else if (importMode === 'url') {
+      handleUrlImport();
+    } else {
+      handleTextImport();
     }
   };
 
@@ -374,7 +429,7 @@ export function ImportDocumentModal({ isOpen, onClose, clientId, clientName }: I
             }`}
           >
             <FontAwesomeIcon icon={faCloudUploadAlt} className="w-4 h-4" />
-            Upload File
+            Upload
           </button>
           <button
             onClick={() => setImportMode('url')}
@@ -385,7 +440,18 @@ export function ImportDocumentModal({ isOpen, onClose, clientId, clientName }: I
             }`}
           >
             <FontAwesomeIcon icon={faLink} className="w-4 h-4" />
-            Import from URL
+            URL
+          </button>
+          <button
+            onClick={() => setImportMode('text')}
+            className={`flex-1 px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-2 border-b-2 transition-colors ${
+              importMode === 'text'
+                ? 'border-[#4074A8] text-[#4074A8]'
+                : 'border-transparent text-[#6B7280] hover:text-[#374151]'
+            }`}
+          >
+            <FontAwesomeIcon icon={faPaste} className="w-4 h-4" />
+            Paste Text
           </button>
         </div>
 
@@ -474,7 +540,7 @@ export function ImportDocumentModal({ isOpen, onClose, clientId, clientName }: I
                 </div>
               )}
             </>
-          ) : (
+          ) : importMode === 'url' ? (
             // URL Import Mode
             <div className="space-y-4">
               <div>
@@ -580,6 +646,76 @@ export function ImportDocumentModal({ isOpen, onClose, clientId, clientName }: I
                 Enter URLs of webpages, PDFs, or documents containing brand guidelines. We'll extract and analyze the content automatically.
               </p>
             </div>
+          ) : (
+            // Paste Text Mode
+            <div className="space-y-4">
+              {textStatus === 'idle' || textStatus === 'error' ? (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-[#374151] mb-1.5">
+                      Paste your content
+                    </label>
+                    <textarea
+                      value={pastedText}
+                      onChange={(e) => setPastedText(e.target.value)}
+                      placeholder="Paste brand guidelines, style guides, or any content containing brand information here..."
+                      className={`
+                        w-full h-48 px-3 py-2.5 text-sm border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-[#4074A8] focus:border-transparent
+                        ${textError ? 'border-red-300 bg-red-50' : 'border-[#D1D5DB]'}
+                      `}
+                    />
+                    <div className="flex justify-between items-center mt-1.5">
+                      <p className="text-xs text-[#6B7280]">
+                        Paste any text content - we'll analyze it and extract brand guidelines automatically.
+                      </p>
+                      {pastedText.length > 0 && (
+                        <p className="text-xs text-[#9CA3AF]">
+                          {pastedText.trim().split(/\s+/).filter(Boolean).length} words
+                        </p>
+                      )}
+                    </div>
+                    {textError && (
+                      <p className="mt-2 text-xs text-red-600">{textError}</p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                // Processing/success state
+                <div className={`
+                  border rounded-lg p-4
+                  ${textStatus === 'success' ? 'border-green-300 bg-green-50' : 'border-[#E5E7EB]'}
+                `}>
+                  <div className="flex items-center gap-3">
+                    <div className={`
+                      w-10 h-10 rounded-lg flex items-center justify-center
+                      ${textStatus === 'success' ? 'bg-green-100' : 'bg-[#F3F4F6]'}
+                    `}>
+                      <FontAwesomeIcon
+                        icon={faPaste}
+                        className={`w-5 h-5 ${textStatus === 'success' ? 'text-green-600' : 'text-[#6B7280]'}`}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-[#374151]">
+                        Pasted Text
+                      </p>
+                      <p className="text-xs text-[#6B7280]">
+                        {textStatus === 'analyzing' && 'Analyzing with AI...'}
+                        {textStatus === 'success' && 'Analysis complete!'}
+                      </p>
+                    </div>
+                    {textStatus === 'analyzing' && (
+                      <FontAwesomeIcon icon={faSpinner} className="w-5 h-5 text-[#F2A918] animate-spin" />
+                    )}
+                    {textStatus === 'success' && (
+                      <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
+                        <FontAwesomeIcon icon={faCheck} className="w-3 h-3 text-green-600" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -591,11 +727,11 @@ export function ImportDocumentModal({ isOpen, onClose, clientId, clientName }: I
             Cancel
           </button>
           <button
-            onClick={importMode === 'file' ? handleUpload : handleUrlImport}
-            disabled={!(isFileReady || isUrlReady) && !isProcessing}
+            onClick={handleImport}
+            disabled={!(isFileReady || isUrlReady || isTextReady) && !isProcessing}
             className={`
               px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2
-              ${(isFileReady || isUrlReady)
+              ${(isFileReady || isUrlReady || isTextReady)
                 ? 'bg-[#F2A918] text-[#111827] hover:bg-[#D99A15]'
                 : isProcessing
                   ? 'bg-[#F2A918] text-[#111827]'

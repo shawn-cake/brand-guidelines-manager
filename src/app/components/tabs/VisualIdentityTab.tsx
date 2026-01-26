@@ -25,6 +25,7 @@ interface VisualIdentityTabProps {
 export interface VisualIdentityTabHandle {
   getSections: () => TocSection[];
   expandedSections: Set<string>;
+  completedSections: Set<string>;
   expandSection: (sectionId: string) => void;
 }
 
@@ -80,17 +81,6 @@ export const VisualIdentityTab = forwardRef<VisualIdentityTabHandle, VisualIdent
     }
   };
 
-  // Expose methods to parent via ref
-  useImperativeHandle(ref, () => ({
-    getSections: () => SECTION_CONFIG.map(({ id, title }) => ({
-      id,
-      title,
-      ref: sectionRefs.current[id],
-    })),
-    expandedSections,
-    expandSection,
-  }), [expandedSections]);
-
   // Data extraction
   const logo = data?.logo || {};
   const logoLockups = logo.logo_lockups || [];
@@ -137,6 +127,75 @@ export const VisualIdentityTab = forwardRef<VisualIdentityTabHandle, VisualIdent
   const envelopes = printApps.envelopes || {};
   const brochures = printApps.brochures_and_collateral || {};
   const printAd = printApps.print_advertising || {};
+
+  // Calculate section completion status
+  const getCompletedSections = (): Set<string> => {
+    const completed = new Set<string>();
+
+    // Logo: complete if at least 1 logo lockup with a name is added
+    if (logoLockups.some((l: { name?: string }) => l?.name?.trim())) {
+      completed.add('logo');
+    }
+
+    // Color: complete if at least 1 primary color with a name is added
+    if (primaryColors.some((c: { name?: string }) => c?.name?.trim())) {
+      completed.add('color');
+    }
+
+    // Typography: complete if primary typeface has a font family
+    if (primaryTypeface.font_family?.trim()) {
+      completed.add('typography');
+    }
+
+    // Photography & Imagery: complete if at least 1 style guideline is added
+    if (styleGuidelines.some((s: string) => s?.trim())) {
+      completed.add('imagery');
+    }
+
+    // Graphic Elements: complete if any icon/pattern/texture/illustration style is defined
+    if (
+      icons.style?.trim() ||
+      patterns.style?.trim() ||
+      textures.style?.trim() ||
+      illustrations.style?.trim()
+    ) {
+      completed.add('graphics');
+    }
+
+    // Digital Applications: complete if any website element or social template is defined
+    if (
+      websiteElements.page_layout_and_grid?.trim() ||
+      socialTemplates.post_templates?.trim() ||
+      emailSig.format?.trim()
+    ) {
+      completed.add('digital');
+    }
+
+    // Print Applications: complete if any print element is defined
+    if (
+      businessCards.size?.trim() ||
+      letterhead.size?.trim() ||
+      brochures.standard_sizes?.trim()
+    ) {
+      completed.add('print');
+    }
+
+    return completed;
+  };
+
+  const completedSections = getCompletedSections();
+
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    getSections: () => SECTION_CONFIG.map(({ id, title }) => ({
+      id,
+      title,
+      ref: sectionRefs.current[id],
+    })),
+    expandedSections,
+    completedSections,
+    expandSection,
+  }), [expandedSections, completedSections]);
 
   return (
     <div className="space-y-4">

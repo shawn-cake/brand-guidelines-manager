@@ -25,6 +25,7 @@ interface FoundationsTabProps {
 export interface FoundationsTabHandle {
   getSections: () => TocSection[];
   expandedSections: Set<string>;
+  completedSections: Set<string>;
   expandSection: (sectionId: string) => void;
 }
 
@@ -76,6 +77,48 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
     }
   };
 
+  const general = data?.general_business_information || {};
+  const brand = data?.brand_identity || {};
+  const services = data?.services_and_providers || {};
+  const social = general.social_media_handles || {};
+
+  // Calculate section completion status
+  const getCompletedSections = (): Set<string> => {
+    const completed = new Set<string>();
+
+    // General: complete if business_name is filled
+    if (general.business_name?.trim()) {
+      completed.add('general');
+    }
+
+    // Brand Identity: complete if brand_story OR mission_statement is filled
+    if (brand.brand_story?.trim() || brand.mission_statement?.trim()) {
+      completed.add('brand');
+    }
+
+    // Services: complete if at least 1 service with a name is added
+    const servicesList = services.services || [];
+    if (servicesList.some((s: { name?: string }) => s.name?.trim())) {
+      completed.add('services');
+    }
+
+    // Providers: complete if at least 1 provider with a name is added
+    const providersList = services.providers || [];
+    if (providersList.some((p: { name?: string }) => p.name?.trim())) {
+      completed.add('providers');
+    }
+
+    // Social Media: complete if at least 1 social handle is filled
+    const socialPlatforms = ['facebook', 'instagram', 'twitter', 'linkedin', 'tiktok', 'youtube'] as const;
+    if (socialPlatforms.some(platform => social[platform]?.trim())) {
+      completed.add('social');
+    }
+
+    return completed;
+  };
+
+  const completedSections = getCompletedSections();
+
   // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
     getSections: () => SECTION_CONFIG.map(({ id, title }) => ({
@@ -84,13 +127,9 @@ export const FoundationsTab = forwardRef<FoundationsTabHandle, FoundationsTabPro
       ref: sectionRefs.current[id],
     })),
     expandedSections,
+    completedSections,
     expandSection,
-  }), [expandedSections]);
-
-  const general = data?.general_business_information || {};
-  const brand = data?.brand_identity || {};
-  const services = data?.services_and_providers || {};
-  const social = general.social_media_handles || {};
+  }), [expandedSections, completedSections]);
 
   const inputWithIconClass = `${inputClass} pr-10`;
 

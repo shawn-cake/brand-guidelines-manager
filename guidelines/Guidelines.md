@@ -123,20 +123,24 @@ Use an 8px base grid with the following scale:
 │   Sidebar    │  ─────────────────────────────────────────── │
 │   (280px)    │  Section Tabs                                │
 │              │  ─────────────────────────────────────────── │
-│              │  Content Area (max-width: 800px, centered)   │
-│              │                                               │
-│              │                                               │
-│              │                                               │
+│              │  ┌──────────────────────┬─────────────┐      │
+│              │  │  Content Area        │ Table of    │      │
+│              │  │  (3/4 width)         │ Contents    │      │
+│              │  │                      │ (1/4 width) │      │
+│              │  │  max-width: 1200px   │ sticky      │      │
+│              │  └──────────────────────┴─────────────┘      │
 └──────────────┴──────────────────────────────────────────────┘
 ```
 
 ### Dimensions
 
 - **Sidebar width:** 280px (fixed)
-- **Content max-width:** 800px (centered in available space)
+- **Content area max-width:** 1200px (3/4 - 1/4 split with ToC)
+- **Table of Contents width:** 192px (w-48, sticky within content)
 - **Minimum viewport:** 1280px (desktop-first)
 - **Header height:** 64px
 - **Tab bar height:** 48px
+- **Content scroll:** Independent scrolling with `overflow-y-scroll`
 
 ---
 
@@ -162,7 +166,7 @@ Use an 8px base grid with the following scale:
 
 **Accent Button (for "Save Version", key CTAs)**
 - Background: Cake Yellow (`#F2A918`)
-- Text: Gray 900 (`#111827`)
+- Text: Gray 900 (`#111827`) — changed from white for better accessibility
 - Border radius: 6px
 - Hover: Yellow 600 (`#D99A15`) - maintains contrast with dark text
 
@@ -176,6 +180,15 @@ Use an 8px base grid with the following scale:
 - Background: Error (`#DC2626`)
 - Text: White
 - Hover: Darker red (`#B91C1C`)
+
+**Icon-Only Button (for Share URL, Version History)**
+- Background: White
+- Border: 1px solid Gray 300 (`#D1D5DB`)
+- Text: Gray 700 (`#374151`)
+- Padding: 12px (px-3 py-2)
+- Border radius: 6px
+- Hover: Gray 50 (`#F9FAFB`) background
+- Requires tooltip for accessibility
 
 ### Input Fields
 
@@ -264,6 +277,8 @@ Use an 8px base grid with the following scale:
 
 ### Toast/Notifications
 
+Implemented using **Sonner** library for consistent toast notifications.
+
 - Background: Gray 800 (`#1F2937`)
 - Text: White
 - Border radius: 8px
@@ -271,6 +286,27 @@ Use an 8px base grid with the following scale:
 - Position: Bottom right
 - Success variant: Left border 4px Success
 - Error variant: Left border 4px Error
+
+### Table of Contents
+
+Sticky sidebar for navigating collapsible sections within a tab.
+
+- **Desktop:** Fixed 192px width (w-48) within content area, sticky at `top-8`
+- **Mobile:** Floating button (bottom-right) opens dropdown
+- **Section indicators:** Blue dot (expanded), Gray dot (collapsed)
+- Background (mobile dropdown): White with border Gray 200
+- Section text: Gray 500, hover Gray 700
+- Header: "On this page" in uppercase, 12px, Gray 500
+
+### Version Viewing Banner
+
+Shows when viewing a historical version (read-only mode).
+
+- Background: Yellow 100 (`#FDE9B8`)
+- Border bottom: Yellow (`#F2A918`)
+- Text: Yellow 700 (`#B87D0E`)
+- "Back to Current Draft" button: Primary blue style
+- Padding: 12px 32px (py-3 px-8)
 
 ---
 
@@ -386,17 +422,102 @@ While desktop-first (1280px minimum), ensure:
 
 ---
 
+## Shared Form Components
+
+The application uses a centralized form component library (`src/app/components/form/`) for consistent styling and behavior across all tabs.
+
+### ControlledInput
+
+Text input with blur-to-save pattern for auto-saving.
+
+```
+inputClass = 'w-full px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-md text-sm
+              text-[#1F2937] placeholder:text-[#9CA3AF] focus:border-[#4074A8]
+              focus:outline-none focus:ring-3 focus:ring-[#D1E0EE]'
+```
+
+### ControlledTextarea
+
+Multiline text with same styling as input, blur-to-save.
+
+### ControlledSelect
+
+Dropdown with immediate save on change.
+
+### Section
+
+Collapsible accordion section with ARIA `aria-expanded` attribute.
+
+- Chevron rotates 90° when expanded
+- Content area has subtle top border when expanded
+
+### FormField
+
+Label wrapper with optional description text.
+
+---
+
 ## File Structure Reference
 
 When designing screens, reference these main views:
 
-1. **Client List (Sidebar)** — List of all clients with sort toggle
-2. **Client Dashboard (Main Area)** — Header + tabs + content
-3. **Section Content** — Form fields organized by subsection
-4. **Version History Modal** — List of versions with view/restore actions
-5. **Document Import Flow** — Upload → Processing → Review → Apply
-6. **Export Panel** — Format selection and download/copy actions
-7. **Empty States** — No clients, no versions, no data in section
+1. **Client List (Sidebar)** — List of all clients with sort toggle, company name + version display
+2. **Client Dashboard (Main Area)** — Header + tabs + content area with ToC
+3. **Section Content** — Form fields organized by collapsible subsections
+4. **Version History Panel** — Slide-in panel with version list and view/restore/delete actions
+5. **Document Import Modal** — Three modes: File Upload, URL Import, Paste Text
+6. **Review Extracted Fields Modal** — Accept/reject individual AI-extracted fields
+7. **Export Dropdown** — Markdown, JSON, PDF, AI Prompt formats
+8. **Empty States** — No clients, no versions, no data in section
+
+---
+
+## New Feature Patterns
+
+### Document Import Flow
+
+Three import modes with consistent processing flow:
+
+1. **File Upload** — Drag-and-drop zone supporting PDF, DOCX, TXT, MD, JSON
+2. **URL Import** — Multiple URLs with individual status tracking
+3. **Paste Text** — Large textarea with word count display
+
+**Processing States:**
+- Pending: Gray spinner
+- Processing: Blue spinner with status text
+- Ready for Review: Green success icon
+- Failed: Red error message
+
+### Export Options
+
+Dropdown with four export formats:
+
+| Format | Actions |
+|--------|---------|
+| Markdown | Download .md, Copy to clipboard |
+| JSON | Download .json, Copy to clipboard |
+| PDF | Download .pdf (uses jsPDF) |
+| AI Prompt | Copy to clipboard (general-purpose) |
+
+**Filename pattern:** `{client-name}-brand-guidelines-v{version}.{ext}`
+
+### Version History Panel
+
+Slide-in panel from the right side.
+
+- Panel width: 400px
+- Header: "Version History" with close button
+- "Save New Version" form at top with name/description inputs
+- Version list with View, Restore, Delete actions
+- Currently viewing version highlighted
+
+### Tooltips
+
+Used for icon-only buttons to maintain accessibility.
+
+- Library: Radix UI Tooltip
+- Position: Bottom (side="bottom")
+- Delay: Default (no custom delay)
 
 ---
 
@@ -406,5 +527,6 @@ When designing screens, reference these main views:
 2. **Generous whitespace** — Don't crowd the interface
 3. **Progressive disclosure** — Collapse complexity, reveal on demand
 4. **Consistent patterns** — Same action = same appearance everywhere
-5. **Informative feedback** — Always show system status
+5. **Informative feedback** — Always show system status (toast notifications)
 6. **Error prevention** — Confirm destructive actions, validate inputs
+7. **Accessibility first** — Tooltips for icons, ARIA attributes, keyboard navigation

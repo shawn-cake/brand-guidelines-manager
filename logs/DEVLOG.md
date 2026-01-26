@@ -37,6 +37,7 @@ A narrative chronicle of the project journey - the decisions, discoveries, and p
 - [x] Multiple URL import support
 - [x] PDF export functionality
 - [x] AI Prompt export for use with any AI tool
+- [x] Paste Text import mode
 - [ ] Test Version History across all tabs
 - [ ] Add data validation and error handling
 
@@ -46,6 +47,25 @@ A narrative chronicle of the project journey - the decisions, discoveries, and p
 ---
 
 ## Daily Log - Newest First
+
+### 2026-01-25: Paste Text Import Mode
+
+**The Request:** User wanted a third import option - the ability to paste text directly into the import modal with text formatting features, which then goes through the same AI analysis process as file uploads and URL imports.
+
+**The Implementation:**
+1. **Backend** - Added `createFromText` mutation in `convex/documentImports.ts` that accepts pasted text and creates a document import record with status "processing", skipping file upload and text extraction steps.
+
+2. **Frontend** - Added third tab "Paste Text" to ImportDocumentModal with:
+   - Large textarea for pasting content
+   - Word count display
+   - Processing/success states with spinner and checkmark indicators
+   - Error handling with user-friendly messages
+
+**Design Decision:** The text import flow is simpler than file/URL - it skips upload and extraction steps and goes directly to Claude analysis since the text is already available.
+
+**Files Changed:** `src/app/components/ImportDocumentModal.tsx`, `convex/documentImports.ts`
+
+---
 
 ### 2026-01-25: New Export Features - PDF and AI Prompts
 

@@ -25,6 +25,7 @@ interface PersonalityTabProps {
 export interface PersonalityTabHandle {
   getSections: () => TocSection[];
   expandedSections: Set<string>;
+  completedSections: Set<string>;
   expandSection: (sectionId: string) => void;
 }
 
@@ -90,6 +91,56 @@ export const PersonalityTab = forwardRef<PersonalityTabHandle, PersonalityTabPro
       }
     };
 
+    // Data extraction with defaults
+    const traits = data?.brand_personality_traits || [];
+    const archetype = data?.brand_archetype || {};
+    const voiceChars = data?.voice_characteristics || [];
+    const toneVariations = data?.tone_variations_by_context || {};
+    const langGuidelines = data?.language_guidelines || {};
+    const preferredTerms = langGuidelines.preferred_terminology || [];
+    const wordsToAvoid = langGuidelines.words_to_avoid || [];
+    const industryLanguage = langGuidelines.industry_specific_language || [];
+    const inclusiveStandards = data?.inclusive_language_standards || [];
+
+    // Calculate section completion status
+    const getCompletedSections = (): Set<string> => {
+      const completed = new Set<string>();
+
+      // Traits: complete if at least 1 trait is added
+      if (traits.some((t: string) => t?.trim())) {
+        completed.add('traits');
+      }
+
+      // Voice & Tone: complete if at least 1 voice characteristic is added
+      if (voiceChars.some((v: string) => v?.trim())) {
+        completed.add('voice');
+      }
+
+      // Tone Variations: complete if at least one context has content
+      const toneContexts = ['formal', 'informal', 'social_media', 'customer_service', 'internal'] as const;
+      if (toneContexts.some(ctx => toneVariations[ctx]?.trim())) {
+        completed.add('toneVariations');
+      }
+
+      // Language Guidelines: complete if at least 1 term, word to avoid, or industry term is added
+      if (
+        preferredTerms.some((t: { use?: string }) => t?.use?.trim()) ||
+        wordsToAvoid.some((w: string) => w?.trim()) ||
+        industryLanguage.some((i: string) => i?.trim())
+      ) {
+        completed.add('language');
+      }
+
+      // Inclusive Language: complete if at least 1 standard is added
+      if (inclusiveStandards.some((s: string) => s?.trim())) {
+        completed.add('inclusive');
+      }
+
+      return completed;
+    };
+
+    const completedSections = getCompletedSections();
+
     // Expose methods to parent via ref
     useImperativeHandle(
       ref,
@@ -101,21 +152,11 @@ export const PersonalityTab = forwardRef<PersonalityTabHandle, PersonalityTabPro
             ref: sectionRefs.current[id],
           })),
         expandedSections,
+        completedSections,
         expandSection,
       }),
-      [expandedSections]
+      [expandedSections, completedSections]
     );
-
-    // Data extraction with defaults
-    const traits = data?.brand_personality_traits || [];
-    const archetype = data?.brand_archetype || {};
-    const voiceChars = data?.voice_characteristics || [];
-    const toneVariations = data?.tone_variations_by_context || {};
-    const langGuidelines = data?.language_guidelines || {};
-    const preferredTerms = langGuidelines.preferred_terminology || [];
-    const wordsToAvoid = langGuidelines.words_to_avoid || [];
-    const industryLanguage = langGuidelines.industry_specific_language || [];
-    const inclusiveStandards = data?.inclusive_language_standards || [];
 
     return (
       <div className="space-y-4">
