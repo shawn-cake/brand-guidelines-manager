@@ -71,11 +71,6 @@ export function Sidebar() {
       <div className="p-4 border-b border-[#E5E7EB]">
         <div className="mb-6">
           <h2 className="text-base font-semibold text-[#1F2937] text-[20px]">Brand Guidelines Manager</h2>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-xs text-[#6B7280]">{COMPANY_NAME}</span>
-            <span className="text-xs text-[#9CA3AF]">•</span>
-            <span className="text-xs text-[#9CA3AF]">v{APP_VERSION}</span>
-          </div>
         </div>
 
         <button
@@ -188,6 +183,15 @@ export function Sidebar() {
             );
           })
         )}
+      </div>
+
+      {/* Footer */}
+      <div className="p-4 border-t border-[#E5E7EB]">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-[#6B7280]">{COMPANY_NAME}</span>
+          <span className="text-xs text-[#9CA3AF]">•</span>
+          <span className="text-xs text-[#9CA3AF]">v{APP_VERSION}</span>
+        </div>
       </div>
     </aside>
   );
